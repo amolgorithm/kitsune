@@ -1,0 +1,28 @@
+/* src/renderer/components/HotkeyBar/HotkeyBar.module.css */
+.bar {
+  height: var(--k-hotkeybar-h);
+  background: var(--k-bg);
+  border-top: 1px solid var(--k-border);
+  padding: 0 12px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-shrink: 0;
+  overflow-x: auto;
+}
+.bar::-webkit-scrollbar { display: none; }
+.hint { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+.key {
+  font-family: var(--k-font-mono);
+  font-size: 9.5px;
+  background: var(--k-surface-2);
+  border: 1px solid var(--k-border-2);
+  border-radius: 4px;
+  padding: 1px 5px;
+  color: var(--k-text-2);
+  line-height: 16px;
+}
+.label {
+  font-size: var(--k-text-xs);
+  color: var(--k-text-3);
+}

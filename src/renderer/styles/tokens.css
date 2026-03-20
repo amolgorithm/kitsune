@@ -1,0 +1,153 @@
+/* src/renderer/styles/tokens.css */
+/* ─────────────────────────────────────────────────────────────────
+   Kitsune Design System — CSS Custom Properties
+   Every color, spacing, radius, font, and animation value lives
+   here. Components use only these tokens — never raw values.
+   ───────────────────────────────────────────────────────────────── */
+
+:root {
+  /* ── Color Palette ─────────────────────────────────────────── */
+
+  /* Backgrounds */
+  --k-bg:         #0d0f12;
+  --k-surface:    #13161c;
+  --k-surface-2:  #1a1e27;
+  --k-surface-3:  #222737;
+  --k-surface-4:  #2a3045;
+
+  /* Borders */
+  --k-border:     rgba(255, 255, 255, 0.06);
+  --k-border-2:   rgba(255, 255, 255, 0.10);
+  --k-border-3:   rgba(255, 255, 255, 0.16);
+
+  /* Text */
+  --k-text:       #e8eaf0;
+  --k-text-2:     #8b909e;
+  --k-text-3:     #565c6e;
+  --k-text-4:     #363b4a;
+
+  /* Fox / Brand accent */
+  --k-fox:        #ff6b35;
+  --k-fox-2:      #ff9a6c;
+  --k-fox-dim:    rgba(255, 107, 53, 0.15);
+  --k-fox-glow:   rgba(255, 107, 53, 0.35);
+
+  /* AI purple */
+  --k-ai:         #7c6eff;
+  --k-ai-2:       #a594ff;
+  --k-ai-dim:     rgba(124, 110, 255, 0.12);
+  --k-ai-glow:    rgba(124, 110, 255, 0.30);
+
+  /* Semantic */
+  --k-green:      #4cffb0;
+  --k-green-dim:  rgba(76, 255, 176, 0.10);
+  --k-red:        #ff4d6d;
+  --k-red-dim:    rgba(255, 77, 109, 0.12);
+  --k-yellow:     #ffd166;
+  --k-yellow-dim: rgba(255, 209, 102, 0.12);
+  --k-blue:       #4cc9f0;
+  --k-blue-dim:   rgba(76, 201, 240, 0.12);
+
+  /* Glass */
+  --k-glass:      rgba(255, 255, 255, 0.04);
+  --k-glass-2:    rgba(255, 255, 255, 0.07);
+
+  /* ── Typography ────────────────────────────────────────────── */
+
+  --k-font-ui:    'Sora', system-ui, sans-serif;
+  --k-font-mono:  'DM Mono', 'Fira Code', monospace;
+  --k-font-prose: 'Newsreader', Georgia, serif;
+
+  --k-text-xs:    10px;
+  --k-text-sm:    11.5px;
+  --k-text-base:  13px;
+  --k-text-md:    14px;
+  --k-text-lg:    16px;
+  --k-text-xl:    20px;
+  --k-text-2xl:   24px;
+
+  --k-weight-light:   300;
+  --k-weight-regular: 400;
+  --k-weight-medium:  500;
+  --k-weight-semibold:600;
+  --k-weight-bold:    700;
+
+  /* ── Spacing ───────────────────────────────────────────────── */
+
+  --k-space-1:  4px;
+  --k-space-2:  8px;
+  --k-space-3:  12px;
+  --k-space-4:  16px;
+  --k-space-5:  20px;
+  --k-space-6:  24px;
+  --k-space-8:  32px;
+
+  /* ── Radii ─────────────────────────────────────────────────── */
+
+  --k-radius-sm: 6px;
+  --k-radius:    10px;
+  --k-radius-md: 12px;
+  --k-radius-lg: 16px;
+  --k-radius-xl: 20px;
+  --k-radius-full: 9999px;
+
+  /* ── Layout Dimensions ─────────────────────────────────────── */
+
+  --k-sidebar-w:    240px;
+  --k-titlebar-h:   32px;
+  --k-navbar-h:     48px;
+  --k-lensbar-h:    36px;
+  --k-statusbar-h:  24px;
+  --k-hotkeybar-h:  28px;
+  --k-tab-h:        36px;
+  --k-ai-panel-w:   340px;
+
+  /* Chrome height = titlebar + navbar + lensbar */
+  --k-chrome-h: calc(var(--k-titlebar-h) + var(--k-navbar-h) + var(--k-lensbar-h));
+
+  /* ── Shadows ───────────────────────────────────────────────── */
+
+  --k-shadow-sm:  0 1px 4px rgba(0, 0, 0, 0.3);
+  --k-shadow:     0 4px 16px rgba(0, 0, 0, 0.4);
+  --k-shadow-lg:  0 16px 48px rgba(0, 0, 0, 0.5);
+  --k-shadow-xl:  0 32px 80px rgba(0, 0, 0, 0.6);
+
+  /* ── Transitions ───────────────────────────────────────────── */
+
+  --k-ease:       cubic-bezier(0.4, 0, 0.2, 1);
+  --k-ease-out:   cubic-bezier(0, 0, 0.2, 1);
+  --k-ease-spring:cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  --k-duration-fast:   120ms;
+  --k-duration:        200ms;
+  --k-duration-slow:   350ms;
+
+  --k-transition:      var(--k-duration) var(--k-ease);
+  --k-transition-fast: var(--k-duration-fast) var(--k-ease);
+  --k-transition-slow: var(--k-duration-slow) var(--k-ease);
+
+  /* ── Z-index Scale ─────────────────────────────────────────── */
+
+  --k-z-base:      0;
+  --k-z-sidebar:   50;
+  --k-z-navbar:    60;
+  --k-z-ai-panel:  70;
+  --k-z-overlay:   100;
+  --k-z-modal:     200;
+  --k-z-toast:     300;
+  --k-z-tooltip:   400;
+}
+
+/* ── Light theme overrides ───────────────────────────────────── */
+.theme-light {
+  --k-bg:        #f5f5f7;
+  --k-surface:   #ffffff;
+  --k-surface-2: #f0f0f3;
+  --k-surface-3: #e5e5ea;
+  --k-border:    rgba(0, 0, 0, 0.06);
+  --k-border-2:  rgba(0, 0, 0, 0.10);
+  --k-text:      #1a1a1a;
+  --k-text-2:    #555561;
+  --k-text-3:    #8e8e9a;
+  --k-glass:     rgba(0, 0, 0, 0.03);
+}

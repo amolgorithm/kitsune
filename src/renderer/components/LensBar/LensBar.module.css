@@ -1,0 +1,43 @@
+/* src/renderer/components/LensBar/LensBar.module.css */
+.lensBar {
+  height: var(--k-lensbar-h);
+  background: var(--k-surface);
+  border-bottom: 1px solid var(--k-border);
+  display: flex;
+  align-items: center;
+  gap: 0;
+  padding: 0 12px;
+  flex-shrink: 0;
+  overflow-x: auto;
+}
+.lensBar::-webkit-scrollbar { display: none; }
+
+.lensItem {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 12px;
+  border-radius: var(--k-radius-full);
+  font-size: 11px;
+  font-weight: var(--k-weight-medium);
+  color: var(--k-text-3);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: var(--k-transition-fast);
+}
+.lensItem:hover { color: var(--k-text-2); }
+.lensActive {
+  background: var(--k-surface-3);
+  color: var(--k-text);
+}
+.lensIcon { font-size: 12px; }
+.lensDivider { width: 1px; height: 14px; background: var(--k-border); margin: 0 4px; flex-shrink: 0; }
+.lensNew {
+  padding: 4px 10px;
+  font-size: 11px;
+  color: var(--k-text-3);
+  white-space: nowrap;
+  border-radius: var(--k-radius-full);
+  transition: var(--k-transition-fast);
+}
+.lensNew:hover { color: var(--k-fox); }

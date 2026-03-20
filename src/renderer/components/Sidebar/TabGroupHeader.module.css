@@ -1,0 +1,57 @@
+/* src/renderer/components/Sidebar/TabGroupHeader.module.css */
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 8px 6px 4px;
+  font-size: var(--k-text-xs);
+  font-weight: var(--k-weight-semibold);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--k-text-3);
+  cursor: pointer;
+  transition: color var(--k-transition-fast);
+}
+
+.header:hover { color: var(--k-text-2); }
+
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--k-radius-full);
+  flex-shrink: 0;
+}
+
+.label {
+  flex: 1;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.aiTag {
+  color: var(--k-ai-2);
+  font-size: 9px;
+}
+
+.count {
+  background: var(--k-surface-2);
+  border: 1px solid var(--k-border);
+  padding: 0 5px;
+  border-radius: var(--k-radius-full);
+  font-size: 8px;
+  line-height: 16px;
+  flex-shrink: 0;
+}
+
+.chevron {
+  flex-shrink: 0;
+  transition: transform var(--k-transition);
+}
+
+.chevronCollapsed {
+  transform: rotate(-90deg);
+}

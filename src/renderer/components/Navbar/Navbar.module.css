@@ -1,0 +1,194 @@
+/* src/renderer/components/Navbar/Navbar.module.css */
+
+.navbar {
+  height: var(--k-navbar-h);
+  background: var(--k-surface);
+  border-bottom: 1px solid var(--k-border);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  flex-shrink: 0;
+  z-index: var(--k-z-navbar);
+}
+
+/* Nav button groups */
+.navGroup {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.navBtn {
+  width: 30px;
+  height: 30px;
+  border-radius: var(--k-radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--k-text-3);
+  transition: var(--k-transition-fast);
+}
+
+.navBtn:hover {
+  background: var(--k-glass);
+  color: var(--k-text);
+}
+
+.navBtnDisabled {
+  opacity: 0.25;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* URL Bar */
+.urlbar {
+  flex: 1;
+  height: 32px;
+  background: var(--k-surface-2);
+  border: 1px solid var(--k-border);
+  border-radius: var(--k-radius-sm);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  cursor: text;
+  transition: border-color var(--k-transition), box-shadow var(--k-transition);
+  position: relative;
+  overflow: hidden;
+  min-width: 0;
+}
+
+.urlbar:hover {
+  border-color: var(--k-border-2);
+}
+
+.urlbarFocused {
+  border-color: var(--k-fox);
+  box-shadow: 0 0 0 2px var(--k-fox-dim);
+}
+
+.urlSecurity {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+
+.iconGreen { color: var(--k-green); }
+.iconRed   { color: var(--k-red); }
+
+.urlInput {
+  flex: 1;
+  background: none;
+  border: none;
+  outline: none;
+  font-size: 12px;
+  font-family: var(--k-font-mono);
+  color: var(--k-text);
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.urlInput::placeholder {
+  color: var(--k-text-3);
+  font-family: var(--k-font-ui);
+  font-size: var(--k-text-sm);
+}
+
+/* Loading progress bar at bottom of urlbar */
+.loadingBar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 2px;
+  width: 60%;
+  background: linear-gradient(90deg, var(--k-fox), var(--k-fox-2));
+  border-radius: 0 1px 1px 0;
+  animation: k-loading-bar 1.2s ease-in-out infinite;
+}
+
+@keyframes k-loading-bar {
+  0%   { left: 0; width: 20%; }
+  50%  { left: 40%; width: 40%; }
+  100% { left: 80%; width: 20%; opacity: 0; }
+}
+
+.urlActions {
+  display: flex;
+  gap: 2px;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.urlActionBtn {
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--k-text-3);
+  transition: var(--k-transition-fast);
+}
+
+.urlActionBtn:hover {
+  background: var(--k-glass);
+  color: var(--k-text);
+}
+
+/* Shield button */
+.shieldBtn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: var(--k-radius-sm);
+  background: var(--k-green-dim);
+  border: 1px solid rgba(76, 255, 176, 0.15);
+  font-size: var(--k-text-xs);
+  font-weight: var(--k-weight-medium);
+  color: var(--k-green);
+  transition: var(--k-transition);
+  white-space: nowrap;
+}
+
+.shieldBtn:hover {
+  background: rgba(76, 255, 176, 0.15);
+  border-color: rgba(76, 255, 176, 0.25);
+}
+
+/* AI button */
+.aiBtn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: var(--k-radius-sm);
+  background: var(--k-ai-dim);
+  border: 1px solid rgba(124, 110, 255, 0.18);
+  font-size: var(--k-text-xs);
+  font-weight: var(--k-weight-medium);
+  color: var(--k-ai-2);
+  transition: var(--k-transition);
+  white-space: nowrap;
+}
+
+.aiBtn:hover {
+  background: rgba(124, 110, 255, 0.18);
+  border-color: rgba(124, 110, 255, 0.28);
+}
+
+.aiBtnActive {
+  background: var(--k-ai);
+  border-color: var(--k-ai);
+  color: white;
+  box-shadow: 0 2px 8px var(--k-ai-glow);
+}
+
+.aiBtnActive:hover {
+  background: var(--k-ai-2);
+  border-color: var(--k-ai-2);
+}

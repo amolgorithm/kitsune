@@ -1,0 +1,47 @@
+/* src/renderer/components/ContentArea/ContentArea.module.css */
+.contentArea {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  background: var(--k-bg);
+}
+.webviewPlaceholder {
+  width: 100%;
+  height: 100%;
+  position: relative;
+}
+.loadingOverlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background: var(--k-bg);
+}
+.foxSpinner {
+  font-size: 32px;
+  animation: k-spin 1s linear infinite;
+}
+.loadingText {
+  font-size: var(--k-text-sm);
+  color: var(--k-text-3);
+  font-family: var(--k-font-mono);
+  max-width: 400px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.errorPage {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.errorIcon { font-size: 40px; }
+.errorTitle { font-size: var(--k-text-xl); font-weight: var(--k-weight-semibold); }
+.errorSub { font-size: var(--k-text-sm); color: var(--k-text-3); font-family: var(--k-font-mono); }

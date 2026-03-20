@@ -1,0 +1,55 @@
+/* src/renderer/styles/lenses.css */
+/* ─────────────────────────────────────────────────────────────────
+   Kitsune Lens Profiles — CSS overrides applied to .app.lens-{id}
+   Each lens can restyle any part of the UI by scoping under its class.
+   ───────────────────────────────────────────────────────────────── */
+
+/* ── Research Lens ────────────────────────────────────────────── */
+.lens-research {
+  --k-fox: #a594ff;   /* Rebrand accent to AI purple in research mode */
+  --k-fox-2: #c4b8ff;
+  --k-fox-dim: rgba(165, 148, 255, 0.15);
+}
+
+.lens-research .sidebar {
+  border-right-color: rgba(165, 148, 255, 0.12);
+}
+
+/* ── Coding Lens ──────────────────────────────────────────────── */
+.lens-coding {
+  --k-fox: #4cc9f0;   /* Blue accent for dev mode */
+  --k-fox-2: #80d8f5;
+  --k-fox-dim: rgba(76, 201, 240, 0.15);
+  --k-font-ui: 'DM Mono', monospace;  /* Mono everywhere in coding lens */
+}
+
+.lens-coding .navbar {
+  border-bottom-color: rgba(76, 201, 240, 0.15);
+}
+
+/* ── Reading Lens ─────────────────────────────────────────────── */
+.lens-reading {
+  --k-bg: #0a0a0b;
+  --k-surface: #111113;
+}
+
+/* In reading mode, the sidebar is more minimal */
+.lens-reading .sidebar {
+  width: 200px;
+}
+
+.lens-reading .lens-bar {
+  display: none;  /* Hide lens bar in reading mode — clean UI */
+}
+
+/* ── Creative Lens ────────────────────────────────────────────── */
+.lens-creative {
+  --k-fox: #ff6b9d;    /* Pink accent for creative mode */
+  --k-fox-2: #ff9abf;
+  --k-fox-dim: rgba(255, 107, 157, 0.15);
+  --k-ai: #ff9a6c;
+  --k-ai-2: #ffbe99;
+}
+
+/* ── Default lens — no overrides needed ───────────────────────── */
+.lens-default {}
