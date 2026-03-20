@@ -2,7 +2,7 @@
 // ─────────────────────────────────────────────────────────────────
 import type { IpcMain, BrowserWindow as BW } from 'electron'
 import type { CleaveManager } from '../services/CleaveManager'
-import type { PaneNode, SplitDirection } from '../../shared/types'
+import type { PaneNode } from '../../shared/types'
 
 export function registerCleaveIPC(ipcMain: IpcMain, cm: CleaveManager, win: BW): void {
   ipcMain.handle('cleave:get-layout', () => cm.getLayout())
@@ -13,5 +13,3 @@ export function registerCleaveIPC(ipcMain: IpcMain, cm: CleaveManager, win: BW):
     return layout
   })
 }
-
-

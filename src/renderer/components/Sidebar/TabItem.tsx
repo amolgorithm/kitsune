@@ -1,6 +1,10 @@
 // src/renderer/components/Sidebar/TabItem.tsx
 import { useBrowserStore } from '../../stores/browserStore'
 import type { KitsuneTab } from '../../../shared/types'
+import {
+  IconClose, IconSleep, IconGlobe, IconGitHub, IconPageDefault,
+  IconSparkle, IconWarning, IconLoading,
+} from '../Icons'
 import styles from './TabItem.module.css'
 
 interface TabItemProps {
@@ -18,75 +22,51 @@ export function TabItem({ tab, isActive }: TabItemProps) {
     else activateTab(tab.id)
   }
 
-  const riskColor =
-    !tab.riskScore            ? undefined
-    : tab.riskScore < 0.15    ? undefined          // safe — no badge
-    : tab.riskScore < 0.35    ? 'var(--k-yellow)'
-    : tab.riskScore < 0.60    ? 'var(--k-fox)'
-    :                            'var(--k-red)'
+  const riskHigh = (tab.riskScore ?? 0) >= 0.6
 
   return (
     <div
       role="tab"
       aria-selected={isActive}
-      className={`${styles.tab} ${isActive ? styles.tabActive : ''} ${tab.hibernated ? styles.tabHibernated : ''}`}
+      className={`${styles.tab} ${isActive ? styles.active : ''} ${tab.hibernated ? styles.hibernated : ''}`}
       onClick={handleClick}
       title={tab.url}
     >
-      {/* Active indicator */}
       {isActive && <div className={styles.activeBar} />}
 
-      {/* Favicon */}
       <div className={styles.favicon}>
-        {tab.favicon
-          ? <img src={tab.favicon} width={14} height={14} alt="" />
-          : <FaviconFallback url={tab.url} />
-        }
-        {tab.status === 'loading' && <div className={styles.loadingRing} />}
+        {tab.status === 'loading' ? (
+          <div className={styles.spinner}>
+            <IconLoading size={14} />
+          </div>
+        ) : tab.favicon ? (
+          <img src={tab.favicon} width={14} height={14} alt="" draggable={false} />
+        ) : (
+          <FaviconIcon url={tab.url} />
+        )}
       </div>
 
-      {/* Title */}
-      <span className={styles.title}>{tab.title || tab.url}</span>
+      <span className={styles.title}>{tab.title || new URL(tab.url.startsWith('http') ? tab.url : 'https://x.com').hostname}</span>
 
-      {/* Badges (hidden on hover — close button shows instead) */}
       <div className={styles.badges}>
-        {tab.hibernated && (
-          <span className={styles.badge} style={{ background: 'var(--k-yellow-dim)', color: 'var(--k-yellow)' }}>
-            💤
-          </span>
-        )}
-        {tab.aiClusterLabel && !tab.hibernated && (
-          <span className={styles.badge} style={{ background: 'var(--k-ai-dim)', color: 'var(--k-ai-2)' }}>
-            ✦
-          </span>
-        )}
-        {riskColor && (
-          <span className={styles.riskDot} style={{ background: riskColor }} title={`Risk score: ${Math.round((tab.riskScore ?? 0) * 100)}%`} />
-        )}
-        {tab.isPinned && <span className={styles.pinIcon}>📌</span>}
+        {tab.hibernated && <IconSleep size={12} className={styles.badgeSleep} />}
+        {tab.aiClusterLabel && !tab.hibernated && <IconSparkle size={11} className={styles.badgeAI} />}
+        {riskHigh && <IconWarning size={11} className={styles.badgeRisk} />}
       </div>
 
-      {/* Close button — shown on hover */}
       <button
         className={styles.closeBtn}
         onClick={e => { e.stopPropagation(); closeTab(tab.id) }}
         title="Close tab"
-        aria-label="Close tab"
       >
-        ×
+        <IconClose size={10} />
       </button>
     </div>
   )
 }
 
-function FaviconFallback({ url }: { url: string }) {
-  // Pick an emoji based on URL pattern
-  if (url.startsWith('kitsune://')) return <span>🦊</span>
-  if (url.includes('github'))       return <span>🐙</span>
-  if (url.includes('google'))       return <span>🔍</span>
-  if (url.includes('youtube'))      return <span>▶</span>
-  if (url.includes('twitter') || url.includes('x.com')) return <span>✕</span>
-  return <span>🌐</span>
+function FaviconIcon({ url }: { url: string }) {
+  if (url === 'kitsune://newtab') return <IconPageDefault size={14} />
+  if (url.includes('github.com'))  return <IconGitHub size={14} />
+  return <IconGlobe size={14} />
 }
-
-

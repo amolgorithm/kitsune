@@ -1,5 +1,6 @@
 // src/renderer/components/StatusBar/StatusBar.tsx
 import { useBrowserStore, useActiveTab } from '../../stores/browserStore'
+import { IconShield, IconSparkle, IconCircleFill } from '../Icons'
 import styles from './StatusBar.module.css'
 
 export function StatusBar() {
@@ -12,41 +13,50 @@ export function StatusBar() {
 
   return (
     <div className={styles.bar}>
-      {/* Left: status dot + current status */}
       <div className={styles.left}>
-        <div className={`${styles.dot} ${isLoading ? styles.dotYellow : styles.dotGreen}`} />
-        <span>{isLoading ? `Loading ${activeTab?.url ?? ''}` : 'Ready'}</span>
-        {activeTab?.riskScore !== undefined && activeTab.riskScore > 0.15 && (
+        <IconCircleFill
+          size={6}
+          className={isLoading ? styles.dotLoading : styles.dotReady}
+        />
+        <span className={styles.item}>
+          {isLoading ? `Loading…` : activeTab?.url === 'kitsune://newtab' ? 'New Tab' : 'Ready'}
+        </span>
+        {activeTab?.riskScore !== undefined && activeTab.riskScore > 0.35 && (
           <>
             <div className={styles.sep} />
-            <span className={styles.riskBadge} style={{ color: riskColor(activeTab.riskScore) }}>
-              ⚠ Risk {Math.round(activeTab.riskScore * 100)}%
+            <span className={styles.riskItem} style={{ color: riskColor(activeTab.riskScore) }}>
+              Risk {Math.round(activeTab.riskScore * 100)}%
             </span>
           </>
         )}
       </div>
 
-      {/* Right: memory, tabs, AI status */}
       <div className={styles.right}>
-        {hibernated > 0 && (
-          <span className={styles.item}>💤 {hibernated} hibernated</span>
-        )}
-        {totalMemMB > 0 && (
-          <span className={styles.item}>{totalMemMB} MB</span>
+        <span className={styles.item}>
+          <IconShield size={10} className={styles.iconGreen} />
+          {hibernated > 0 ? `${hibernated} sleeping` : 'Protected'}
+        </span>
+        <div className={styles.sep} />
+        <span className={styles.item}>{tabs.length} tab{tabs.length !== 1 ? 's' : ''}</span>
+        {totalMB > 0 && (
+          <>
+            <div className={styles.sep} />
+            <span className={styles.item}>{totalMB}MB</span>
+          </>
         )}
         <div className={styles.sep} />
-        <span className={styles.item}>{tabs.length} tabs</span>
-        <div className={styles.sep} />
-        <span className={`${styles.item} ${styles.aiStatus}`}>✦ AI ready</span>
+        <span className={`${styles.item} ${styles.aiItem}`}>
+          <IconSparkle size={10} />
+          AI
+        </span>
       </div>
     </div>
   )
+
+  function totalMB() { return totalMemMB }
 }
 
-function riskColor(score: number): string {
-  if (score < 0.35) return 'var(--k-yellow)'
-  if (score < 0.60) return 'var(--k-fox)'
+function riskColor(score: number) {
+  if (score < 0.6) return 'var(--k-yellow)'
   return 'var(--k-red)'
 }
-
-

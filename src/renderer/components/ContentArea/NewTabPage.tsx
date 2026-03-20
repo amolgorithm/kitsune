@@ -1,68 +1,76 @@
 // src/renderer/components/ContentArea/NewTabPage.tsx
 import { useState } from 'react'
 import { useBrowserStore } from '../../stores/browserStore'
+import { IconSearch, IconGlobe, IconCode, IconBook, IconGitHub, IconFile } from '../Icons'
 import styles from './NewTabPage.module.css'
 
 const QUICK_LINKS = [
-  { icon: '🐙', label: 'GitHub',    url: 'https://github.com' },
-  { icon: '📰', label: 'HN',        url: 'https://news.ycombinator.com' },
-  { icon: '🤖', label: 'Claude',    url: 'https://claude.ai' },
-  { icon: '📦', label: 'npm',       url: 'https://npmjs.com' },
-  { icon: '🗺️', label: 'Maps',      url: 'https://maps.google.com' },
-  { icon: '📊', label: 'Linear',    url: 'https://linear.app' },
+  { icon: <IconGitHub size={18} />,  label: 'GitHub',    url: 'https://github.com' },
+  { icon: <IconGlobe size={18} />,   label: 'HN',        url: 'https://news.ycombinator.com' },
+  { icon: <IconCode size={18} />,    label: 'MDN',       url: 'https://developer.mozilla.org' },
+  { icon: <IconFile size={18} />,    label: 'Docs',      url: 'https://docs.anthropic.com' },
+  { icon: <IconBook size={18} />,    label: 'Wikipedia', url: 'https://wikipedia.org' },
+  { icon: <IconSearch size={18} />,  label: 'Search',    url: 'https://google.com' },
 ]
 
 export function NewTabPage() {
-  const [query, setQuery] = useState('')
-  const createTab    = useBrowserStore(s => s.createTab)
-  const activeTabId  = useBrowserStore(s => s.activeTabId)
-  const navigateTab  = useBrowserStore(s => s.navigateTab)
-  const tabs         = useBrowserStore(s => s.tabs)
+  const [query, setQuery]  = useState('')
+  const activeTabId        = useBrowserStore(s => s.activeTabId)
+  const navigateTab        = useBrowserStore(s => s.navigateTab)
+  const tabs               = useBrowserStore(s => s.tabs)
 
   const hibernated = tabs.filter(t => t.hibernated).length
   const totalMB    = Math.round(tabs.reduce((a, t) => a + t.memoryBytes, 0) / (1024 * 1024))
 
+  const navigate = (url: string) => {
+    if (activeTabId) navigateTab(activeTabId, url)
+  }
+
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!query.trim() || !activeTabId) return
-    navigateTab(activeTabId, query)
+    if (!query.trim()) return
+    const url = query.includes('.')
+      ? query.startsWith('http') ? query : `https://${query}`
+      : `https://www.google.com/search?q=${encodeURIComponent(query)}`
+    navigate(url)
   }
+
+  const hour = new Date().getHours()
+  const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening'
 
   return (
     <div className={styles.page}>
       <div className={styles.inner}>
-        {/* Greeting */}
         <div className={styles.greeting}>
-          <span className={styles.greetingFox}>🦊</span>
-          <h1 className={styles.greetingText}>Good afternoon.</h1>
-          <p className={styles.greetingSub}>What are we researching today?</p>
+          <h1 className={styles.greetingText}>{greeting}.</h1>
+          <p className={styles.greetingSub}>Where are we going?</p>
         </div>
 
-        {/* Search bar */}
         <form className={styles.searchForm} onSubmit={handleSearch}>
           <div className={styles.searchBox}>
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" className={styles.searchIcon}>
-              <circle cx="7" cy="7" r="5"/><line x1="11" y1="11" x2="14" y2="14"/>
-            </svg>
+            <IconSearch size={16} className={styles.searchIcon} />
             <input
               type="text"
               className={styles.searchInput}
-              placeholder="Search or enter a URL…"
+              placeholder="Search or enter URL…"
               value={query}
               onChange={e => setQuery(e.target.value)}
               autoFocus
             />
-            <kbd className={styles.searchKbd}>↵</kbd>
+            {query && (
+              <button type="submit" className={styles.searchSubmit}>
+                Go
+              </button>
+            )}
           </div>
         </form>
 
-        {/* Quick links */}
         <div className={styles.quickLinks}>
           {QUICK_LINKS.map(link => (
             <button
               key={link.url}
               className={styles.quickLink}
-              onClick={() => activeTabId && navigateTab(activeTabId, link.url)}
+              onClick={() => navigate(link.url)}
             >
               <span className={styles.quickLinkIcon}>{link.icon}</span>
               <span className={styles.quickLinkLabel}>{link.label}</span>
@@ -70,23 +78,32 @@ export function NewTabPage() {
           ))}
         </div>
 
-        {/* Stats row */}
-        <div className={styles.statsRow}>
-          <div className={styles.stat}>
-            <span className={styles.statVal}>{tabs.length}</span>
-            <span className={styles.statLabel}>open tabs</span>
+        {(tabs.length > 1 || hibernated > 0) && (
+          <div className={styles.statsRow}>
+            <div className={styles.stat}>
+              <span className={styles.statVal}>{tabs.length}</span>
+              <span className={styles.statLabel}>tabs open</span>
+            </div>
+            {hibernated > 0 && (
+              <>
+                <div className={styles.statDivider} />
+                <div className={styles.stat}>
+                  <span className={styles.statVal}>{hibernated}</span>
+                  <span className={styles.statLabel}>hibernated</span>
+                </div>
+              </>
+            )}
+            {totalMB > 0 && (
+              <>
+                <div className={styles.statDivider} />
+                <div className={styles.stat}>
+                  <span className={styles.statVal}>{totalMB}MB</span>
+                  <span className={styles.statLabel}>memory</span>
+                </div>
+              </>
+            )}
           </div>
-          <div className={styles.statDivider} />
-          <div className={styles.stat}>
-            <span className={styles.statVal}>{hibernated}</span>
-            <span className={styles.statLabel}>hibernated</span>
-          </div>
-          <div className={styles.statDivider} />
-          <div className={styles.stat}>
-            <span className={styles.statVal}>{totalMB > 0 ? `${totalMB}MB` : '—'}</span>
-            <span className={styles.statLabel}>memory used</span>
-          </div>
-        </div>
+        )}
       </div>
     </div>
   )

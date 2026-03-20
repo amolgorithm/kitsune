@@ -1,0 +1,55 @@
+.titlebar {
+  height: var(--k-titlebar-h);
+  background: var(--k-bg);
+  border-bottom: 1px solid var(--k-border);
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  flex-shrink: 0;
+  /* Makes the entire bar draggable on frameless windows */
+  -webkit-app-region: drag;
+  user-select: none;
+}
+
+.trafficLightSpace {
+  width: 68px; /* macOS traffic lights width */
+  flex-shrink: 0;
+}
+
+.title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--k-text-3);
+  letter-spacing: 0.04em;
+  flex: 1;
+  text-align: center;
+}
+
+.winControls {
+  display: flex;
+  gap: 0;
+  margin-left: auto;
+  /* Controls must NOT be draggable */
+  -webkit-app-region: no-drag;
+}
+
+.winBtn {
+  width: 46px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--k-text-3);
+  transition: background var(--k-duration-fast) var(--k-ease), color var(--k-duration-fast) var(--k-ease);
+  border-radius: 0;
+}
+
+.winBtn:hover {
+  background: var(--k-surface-2);
+  color: var(--k-text);
+}
+
+.winClose:hover {
+  background: #c42b1c;
+  color: white;
+}

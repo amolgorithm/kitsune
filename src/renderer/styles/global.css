@@ -1,5 +1,5 @@
 /* src/renderer/styles/global.css */
-@import url('https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=Sora:wght@200;300;400;500;600;700&family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,600;1,6..72,300;1,6..72,400&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Sora:wght@300;400;500;600;700&family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,600;1,6..72,300;1,6..72,400&display=swap');
 
 *, *::before, *::after {
   box-sizing: border-box;
@@ -23,8 +23,7 @@ body {
   user-select: none;
 }
 
-/* ── App Shell Layout ────────────────────────────────────────── */
-
+/* ── App Shell ─────────────────────────────────────────────────── */
 .app {
   display: flex;
   flex-direction: column;
@@ -32,10 +31,16 @@ body {
   height: 100%;
 }
 
+/* The titlebar drag region needs to be above everything on Windows */
+.app > [class*="TitleBar"] {
+  flex-shrink: 0;
+}
+
 .chrome {
   display: flex;
   flex: 1;
   overflow: hidden;
+  min-height: 0;
 }
 
 .main {
@@ -50,149 +55,41 @@ body {
   flex: 1;
   display: flex;
   overflow: hidden;
+  min-height: 0;
 }
 
-/* ── Scrollbars ──────────────────────────────────────────────── */
+/* ── Scrollbars ──────────────────────────────────────────────────*/
+::-webkit-scrollbar          { width: 4px; height: 4px; }
+::-webkit-scrollbar-track    { background: transparent; }
+::-webkit-scrollbar-thumb    { background: var(--k-surface-3); border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: var(--k-surface-4); }
 
-::-webkit-scrollbar {
-  width: 4px;
-  height: 4px;
-}
-
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-::-webkit-scrollbar-thumb {
-  background: var(--k-surface-3);
-  border-radius: var(--k-radius-full);
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: var(--k-surface-4);
-}
-
-/* ── Keyframe Animations ─────────────────────────────────────── */
-
-@keyframes k-fade-in {
-  from { opacity: 0; }
-  to   { opacity: 1; }
-}
-
-@keyframes k-slide-up {
-  from { opacity: 0; transform: translateY(10px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes k-slide-right {
-  from { opacity: 0; transform: translateX(20px); }
-  to   { opacity: 1; transform: translateX(0); }
-}
-
-@keyframes k-scale-in {
-  from { opacity: 0; transform: scale(0.95); }
-  to   { opacity: 1; transform: scale(1); }
-}
-
-@keyframes k-pulse-glow {
-  0%, 100% { box-shadow: 0 0 0 0 var(--k-ai-glow); }
-  50%       { box-shadow: 0 0 0 6px transparent; }
-}
-
+/* ── Keyframes ───────────────────────────────────────────────────*/
+@keyframes k-fade-in    { from { opacity: 0; }                        to { opacity: 1; } }
+@keyframes k-slide-up   { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes k-slide-right{ from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
+@keyframes k-scale-in   { from { opacity: 0; transform: scale(0.95); }  to { opacity: 1; transform: scale(1); } }
+@keyframes k-spin       { from { transform: rotate(0deg); }            to { transform: rotate(360deg); } }
 @keyframes k-dot-bounce {
   0%, 60%, 100% { transform: translateY(0);   opacity: 0.4; }
-  30%            { transform: translateY(-5px); opacity: 1; }
+  30%           { transform: translateY(-5px); opacity: 1;   }
+}
+@keyframes k-loading-bar {
+  0%   { left: 0;   width: 20%; }
+  50%  { left: 40%; width: 40%; }
+  100% { left: 80%; width: 20%; opacity: 0; }
 }
 
-@keyframes k-shimmer {
-  0%   { background-position: -600px 0; }
-  100% { background-position:  600px 0; }
-}
+/* ── Utility ─────────────────────────────────────────────────────*/
+.k-fade-in      { animation: k-fade-in   var(--k-duration) var(--k-ease); }
+.k-slide-up     { animation: k-slide-up  var(--k-duration) var(--k-ease); }
+.k-slide-right  { animation: k-slide-right var(--k-duration-slow) var(--k-ease); }
+.k-scale-in     { animation: k-scale-in  var(--k-duration) var(--k-ease); }
+.k-spin         { animation: k-spin 1s linear infinite; }
+.k-truncate     { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-@keyframes k-spin {
-  from { transform: rotate(0deg); }
-  to   { transform: rotate(360deg); }
-}
-
-/* ── Utility Classes ─────────────────────────────────────────── */
-
-.k-fade-in     { animation: k-fade-in  var(--k-duration) var(--k-ease); }
-.k-slide-up    { animation: k-slide-up var(--k-duration) var(--k-ease); }
-.k-slide-right { animation: k-slide-right var(--k-duration-slow) var(--k-ease); }
-.k-scale-in    { animation: k-scale-in var(--k-duration) var(--k-ease); }
-
-.k-shimmer {
-  background: linear-gradient(
-    90deg,
-    var(--k-surface-2) 25%,
-    var(--k-surface-3) 50%,
-    var(--k-surface-2) 75%
-  );
-  background-size: 600px 100%;
-  animation: k-shimmer 1.6s infinite;
-}
-
-.k-spin { animation: k-spin 1s linear infinite; }
-
-.k-truncate {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.k-sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
-}
-
-/* ── Interactive element resets ──────────────────────────────── */
-
-button {
-  background: none;
-  border: none;
-  cursor: pointer;
-  font-family: inherit;
-  color: inherit;
-  padding: 0;
-}
-
-input, textarea {
-  font-family: inherit;
-  color: inherit;
-}
-
-a {
-  color: inherit;
-  text-decoration: none;
-}
-
-/* ── Tooltip ──────────────────────────────────────────────────── */
-
-[data-tooltip] {
-  position: relative;
-}
-
-[data-tooltip]:hover::after {
-  content: attr(data-tooltip);
-  position: absolute;
-  bottom: calc(100% + 6px);
-  left: 50%;
-  transform: translateX(-50%);
-  background: var(--k-surface-3);
-  border: 1px solid var(--k-border-2);
-  color: var(--k-text);
-  font-size: var(--k-text-xs);
-  padding: 4px 8px;
-  border-radius: var(--k-radius-sm);
-  white-space: nowrap;
-  pointer-events: none;
-  z-index: var(--k-z-tooltip);
-  box-shadow: var(--k-shadow-sm);
-}
+/* ── Element resets ─────────────────────────────────────────────*/
+button   { background: none; border: none; cursor: pointer; font-family: inherit; color: inherit; padding: 0; }
+input, textarea { font-family: inherit; color: inherit; }
+a        { color: inherit; text-decoration: none; }
+img      { display: block; }

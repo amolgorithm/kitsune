@@ -3,12 +3,30 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:;" />
     <title>Kitsune</title>
+    <style>
+      body { margin: 0; background: #0d0f12; color: #e8eaf0; font-family: monospace; }
+      #boot-msg { 
+        position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%);
+        font-size: 13px; color: #565c6e; text-align: center; line-height: 2;
+      }
+    </style>
   </head>
   <body>
+    <div id="boot-msg">
+      Kitsune loading…<br>
+      <span id="boot-detail" style="color:#ff4d6d;font-size:11px"></span>
+    </div>
     <div id="root"></div>
+    <script>
+      // Fires immediately — before React loads
+      window.addEventListener('error', function(e) {
+        document.getElementById('boot-detail').textContent = e.message + ' (' + e.filename + ':' + e.lineno + ')'
+      })
+      window.addEventListener('unhandledrejection', function(e) {
+        document.getElementById('boot-detail').textContent = 'Promise: ' + e.reason
+      })
+    </script>
     <script type="module" src="/src/renderer/main.tsx"></script>
   </body>
 </html>

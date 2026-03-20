@@ -3,214 +3,175 @@ import { useState } from 'react'
 import { useBrowserStore } from '../../stores/browserStore'
 import { TabItem } from './TabItem'
 import { TabGroupHeader } from './TabGroupHeader'
+import {
+  IconSearch, IconPlus, IconSettings, IconSplitH,
+  IconFile, IconUser, IconDot, IconClose,
+} from '../Icons'
 import styles from './Sidebar.module.css'
 
 export function Sidebar() {
-  const tabs            = useBrowserStore(s => s.tabs)
-  const groups          = useBrowserStore(s => s.groups)
-  const workspaces      = useBrowserStore(s => s.workspaces)
-  const activeWorkspace = useBrowserStore(s => s.activeWorkspaceId)
-  const activeTabId     = useBrowserStore(s => s.activeTabId)
-  const switchWorkspace = useBrowserStore(s => s.switchWorkspace)
-  const createTab       = useBrowserStore(s => s.createTab)
-  const openSettings    = useBrowserStore(s => s.openSettings)
-  const toggleCleave    = useBrowserStore(s => s.toggleCleave)
+  const tabs             = useBrowserStore(s => s.tabs)
+  const groups           = useBrowserStore(s => s.groups)
+  const workspaces       = useBrowserStore(s => s.workspaces)
+  const activeWorkspace  = useBrowserStore(s => s.activeWorkspaceId)
+  const activeTabId      = useBrowserStore(s => s.activeTabId)
+  const switchWorkspace  = useBrowserStore(s => s.switchWorkspace)
+  const createTab        = useBrowserStore(s => s.createTab)
+  const openSettings     = useBrowserStore(s => s.openSettings)
+  const toggleCleave     = useBrowserStore(s => s.toggleCleave)
 
-  const [searchQuery, setSearchQuery] = useState('')
-  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
+  const [searchQuery, setSearchQuery]     = useState('')
+  const [collapsed, setCollapsed]         = useState<Set<string>>(new Set())
+  const [searchFocused, setSearchFocused] = useState(false)
 
-  const toggleGroupCollapse = (groupId: string) => {
-    setCollapsedGroups(prev => {
+  const toggleGroup = (id: string) =>
+    setCollapsed(prev => {
       const next = new Set(prev)
-      next.has(groupId) ? next.delete(groupId) : next.add(groupId)
+      next.has(id) ? next.delete(id) : next.add(id)
       return next
     })
-  }
 
-  // Filter tabs by search
-  const filteredTabs = searchQuery.trim()
+  const q = searchQuery.trim().toLowerCase()
+  const filteredTabs = q
     ? tabs.filter(t =>
-        t.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        t.url.toLowerCase().includes(searchQuery.toLowerCase())
+        t.title.toLowerCase().includes(q) || t.url.toLowerCase().includes(q)
       )
     : tabs
 
-  // Group tabs — ungrouped tabs rendered at end
-  const groupedTabIds = new Set(groups.flatMap(g => g.tabIds))
-  const ungroupedTabs = filteredTabs.filter(t => !groupedTabIds.has(t.id))
+  const groupedIds = new Set(groups.flatMap(g => g.tabIds))
+  const ungrouped  = filteredTabs.filter(t => !groupedIds.has(t.id))
 
-  // Tab stats for status display
   const hibernatedCount = tabs.filter(t => t.hibernated).length
-  const totalMemMB = Math.round(
-    tabs.reduce((acc, t) => acc + t.memoryBytes, 0) / (1024 * 1024)
-  )
 
   return (
-    <aside className={styles.sidebar} aria-label="Sidebar">
+    <aside className={styles.sidebar}>
       {/* Logo */}
       <div className={styles.logoRow}>
-        <div className={styles.logoMark}>🦊</div>
+        <div className={styles.logoMark}>
+          <KitsuneLogo />
+        </div>
         <span className={styles.logoText}>Kitsune</span>
-        <span className={styles.version}>v0.9.4</span>
+        <span className={styles.version}>0.9.4</span>
       </div>
 
       {/* Search */}
       <div className={styles.searchWrap}>
-        <div className={styles.searchBox}>
-          <SearchIcon />
+        <div className={`${styles.searchBox} ${searchFocused ? styles.searchFocused : ''}`}>
+          <IconSearch size={13} className={styles.searchIcon} />
           <input
             type="text"
-            placeholder="Search tabs, history…"
+            placeholder="Search tabs…"
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
+            onFocus={() => setSearchFocused(true)}
+            onBlur={() => setSearchFocused(false)}
             className={styles.searchInput}
-            aria-label="Search tabs"
           />
           {searchQuery && (
-            <button className={styles.searchClear} onClick={() => setSearchQuery('')}>×</button>
+            <button className={styles.searchClear} onClick={() => setSearchQuery('')}>
+              <IconClose size={10} />
+            </button>
           )}
         </div>
       </div>
 
       {/* Workspaces */}
-      <div className={styles.workspaceSection}>
-        <div className={styles.sectionLabel}>Workspaces</div>
-        <div className={styles.workspacePills}>
-          {workspaces.map(ws => (
-            <button
-              key={ws.id}
-              className={`${styles.wsPill} ${ws.id === activeWorkspace ? styles.wsPillActive : ''}`}
-              onClick={() => switchWorkspace(ws.id)}
-              title={ws.name}
-            >
-              <span className={styles.wsIcon}>{ws.icon}</span>
-              {ws.name}
-            </button>
-          ))}
-          <button className={styles.wsPillAdd} title="New workspace">+</button>
+      {workspaces.length > 0 && (
+        <div className={styles.workspaceSection}>
+          <div className={styles.sectionLabel}>Workspaces</div>
+          <div className={styles.workspacePills}>
+            {workspaces.map(ws => (
+              <button
+                key={ws.id}
+                className={`${styles.wsPill} ${ws.id === activeWorkspace ? styles.wsPillActive : ''}`}
+                onClick={() => switchWorkspace(ws.id)}
+              >
+                {ws.name}
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* Tab memory indicator */}
+      {/* Hibernate notice */}
       {hibernatedCount > 0 && (
-        <div className={styles.memBar}>
-          <span className={styles.memIcon}>💤</span>
-          <span>{hibernatedCount} tabs hibernated · saving ~{hibernatedCount * 80}MB</span>
+        <div className={styles.hibernateBar}>
+          <span className={styles.hibernateDot} />
+          {hibernatedCount} tab{hibernatedCount > 1 ? 's' : ''} hibernated
         </div>
       )}
 
       {/* Tab list */}
       <div className={styles.tabList} role="tablist">
-        {/* Grouped tabs */}
         {groups.map(group => {
           const groupTabs = filteredTabs.filter(t => group.tabIds.includes(t.id))
           if (groupTabs.length === 0) return null
-          const collapsed = collapsedGroups.has(group.id)
-
+          const isCollapsed = collapsed.has(group.id)
           return (
-            <div key={group.id} className={styles.tabGroup}>
+            <div key={group.id}>
               <TabGroupHeader
                 group={group}
                 count={groupTabs.length}
-                collapsed={collapsed}
-                onToggle={() => toggleGroupCollapse(group.id)}
+                collapsed={isCollapsed}
+                onToggle={() => toggleGroup(group.id)}
               />
-              {!collapsed && groupTabs.map(tab => (
+              {!isCollapsed && groupTabs.map(tab => (
                 <TabItem key={tab.id} tab={tab} isActive={tab.id === activeTabId} />
               ))}
             </div>
           )
         })}
 
-        {/* Ungrouped tabs */}
-        {ungroupedTabs.length > 0 && (
-          <div className={styles.tabGroup}>
-            {groups.length > 0 && (
-              <div className={styles.groupDivider}>
-                <span>Other</span>
-              </div>
-            )}
-            {ungroupedTabs.map(tab => (
-              <TabItem key={tab.id} tab={tab} isActive={tab.id === activeTabId} />
-            ))}
-          </div>
-        )}
+        {ungrouped.map(tab => (
+          <TabItem key={tab.id} tab={tab} isActive={tab.id === activeTabId} />
+        ))}
 
         {filteredTabs.length === 0 && searchQuery && (
           <div className={styles.emptySearch}>No tabs match "{searchQuery}"</div>
         )}
       </div>
 
-      {/* New tab button */}
+      {/* New tab */}
       <button className={styles.newTabBtn} onClick={() => createTab('kitsune://newtab')}>
-        <span className={styles.newTabPlus}>+</span>
+        <IconPlus size={12} />
         New Tab
-        <kbd className={styles.newTabKbd}>⌘T</kbd>
+        <span className={styles.newTabKbd}>⌘T</span>
       </button>
 
-      {/* Footer nav */}
+      {/* Footer */}
       <nav className={styles.footer}>
-        <SidebarFooterItem icon={<SettingsIcon />} label="Settings" kbd="⌘," onClick={openSettings} />
-        <SidebarFooterItem icon={<CleaveIcon />}   label="Cleave"   kbd="⌘\" onClick={toggleCleave} />
-        <SidebarFooterItem icon={<FileIcon />}     label="Files"    kbd="⌘F" onClick={() => {}} />
+        <FooterItem icon={<IconSettings size={14} />} label="Settings" kbd="⌘," onClick={openSettings} />
+        <FooterItem icon={<IconSplitH size={14} />}  label="Cleave"   kbd="⌘\" onClick={toggleCleave} />
+        <FooterItem icon={<IconFile size={14} />}    label="Files"    onClick={() => {}} />
         <div className={styles.footerUser}>
-          <div className={styles.userAvatar}>AK</div>
-          <span className={styles.userName}>Alex K.</span>
-          <div className={styles.onlineDot} />
+          <div className={styles.userAvatar}><IconUser size={12} /></div>
+          <span className={styles.userName}>You</span>
+          <IconDot size={8} className={styles.onlineDot} />
         </div>
       </nav>
     </aside>
   )
 }
 
-function SidebarFooterItem({
+function FooterItem({
   icon, label, kbd, onClick,
-}: {
-  icon: React.ReactNode
-  label: string
-  kbd?: string
-  onClick: () => void
-}) {
+}: { icon: React.ReactNode; label: string; kbd?: string; onClick: () => void }) {
   return (
     <button className={styles.footerItem} onClick={onClick}>
       <span className={styles.footerIcon}>{icon}</span>
       <span className={styles.footerLabel}>{label}</span>
-      {kbd && <kbd className={styles.footerKbd}>{kbd}</kbd>}
+      {kbd && <span className={styles.footerKbd}>{kbd}</span>}
     </button>
   )
 }
 
-// ── Inline SVG icons ─────────────────────────────────────────────
-
-function SearchIcon() {
+function KitsuneLogo() {
   return (
-    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
-      <circle cx="7" cy="7" r="5" /><line x1="11" y1="11" x2="14" y2="14" />
-    </svg>
-  )
-}
-function SettingsIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-      <circle cx="8" cy="8" r="2.5" />
-      <path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.05 3.05l1.41 1.41M11.54 11.54l1.41 1.41M3.05 12.95l1.41-1.41M11.54 4.46l1.41-1.41" />
-    </svg>
-  )
-}
-function CleaveIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-      <rect x="1" y="1" width="6" height="14" rx="1" />
-      <rect x="9" y="1" width="6" height="6" rx="1" />
-      <rect x="9" y="9" width="6" height="6" rx="1" />
-    </svg>
-  )
-}
-function FileIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-      <path d="M3 13V5l4-4h5a1 1 0 011 1v11a1 1 0 01-1 1H4a1 1 0 01-1-1z" />
-      <path d="M7 1v4H3" />
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+      <path d="M8 1L4 4 2 8l2 3 4 1 4-1 2-3-2-4z" fill="#ff6b35" />
+      <path d="M4 4L2 2M12 4l2-2" stroke="#ff6b35" strokeWidth="1.5" strokeLinecap="round" />
+      <circle cx="6" cy="8" r="1" fill="white" />
+      <circle cx="10" cy="8" r="1" fill="white" />
     </svg>
   )
 }

@@ -1,38 +1,19 @@
 // src/main/services/SettingsStore.ts
-// ─────────────────────────────────────────────────────────────────
-
+// electron-store v8 is ESM-only; Vite bundles main as ESM so the
+// default import works fine when rollupOptions keeps it external.
 import ElectronStore from 'electron-store'
 import { DEFAULT_SETTINGS, type KitsuneSettings } from '../../shared/types'
 
 type SettingsKey = keyof KitsuneSettings
 
 export class SettingsStore {
-  private store!: ElectronStore<KitsuneSettings>
+  private store!: InstanceType<typeof ElectronStore<KitsuneSettings>>
   private listeners = new Map<string, Array<() => void>>()
 
   async init(): Promise<void> {
     this.store = new ElectronStore<KitsuneSettings>({
       name: 'kitsune-settings',
       defaults: DEFAULT_SETTINGS,
-      schema: {
-        aiProvider:               { type: 'string', enum: ['anthropic', 'local'] },
-        anthropicApiKey:          { type: 'string' },
-        aiEnabled:                { type: 'boolean' },
-        aiRunLocal:               { type: 'boolean' },
-        autoHibernateEnabled:     { type: 'boolean' },
-        hibernateAfterMs:         { type: 'number' },
-        autoGroupTabs:            { type: 'boolean' },
-        maxActiveTabMemoryMB:     { type: 'number' },
-        trackerBlockingEnabled:   { type: 'boolean' },
-        adBlockingEnabled:        { type: 'boolean' },
-        fingerprintProtection:    { type: 'boolean' },
-        aiRiskScoringEnabled:     { type: 'boolean' },
-        sidebarPosition:          { type: 'string', enum: ['left', 'right'] },
-        tabLayout:                { type: 'string', enum: ['vertical', 'horizontal'] },
-        theme:                    { type: 'string', enum: ['dark', 'light', 'system'] },
-        activeLensId:             { type: 'string' },
-        hotkeys:                  { type: 'object' },
-      } as any,
     })
   }
 
