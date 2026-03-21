@@ -308,3 +308,116 @@
   box-shadow: 0 0 6px var(--k-green);
   flex-shrink: 0;
 }
+
+/* RAM efficiency bar */
+.ramBar {
+  position: relative;
+  margin: 0 10px 6px;
+  height: 22px;
+  background: var(--k-surface-2);
+  border: 1px solid var(--k-border);
+  border-radius: var(--k-radius-sm);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.ramBarFill {
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  background: linear-gradient(90deg, rgba(76,255,176,0.2), rgba(76,255,176,0.1));
+  transition: width 0.5s ease;
+}
+.ramLabel {
+  position: relative;
+  font-size: 9.5px;
+  color: var(--k-green);
+  padding: 0 8px;
+  line-height: 22px;
+  white-space: nowrap;
+  display: block;
+}
+
+/* AI group button */
+.aiGroupBtn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin: 0 10px 6px;
+  padding: 5px 10px;
+  border-radius: var(--k-radius-sm);
+  background: var(--k-ai-dim);
+  border: 1px solid rgba(124,110,255,0.2);
+  font-size: var(--k-text-xs);
+  color: var(--k-ai-2);
+  cursor: pointer;
+  transition: var(--k-transition);
+  flex-shrink: 0;
+}
+.aiGroupBtn:hover { background: rgba(124,110,255,0.18); border-color: var(--k-ai); }
+
+/* Group RAM notice */
+.groupRam {
+  font-size: 9.5px;
+  color: var(--k-green);
+  padding: 2px 10px 4px 22px;
+  opacity: 0.8;
+}
+
+/* Empty states */
+.emptySearch, .emptyWs {
+  padding: 12px 10px;
+  font-size: var(--k-text-xs);
+  color: var(--k-text-3);
+  text-align: center;
+}
+
+/* Section header with action button */
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+.sectionAction {
+  width: 18px; height: 18px;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--k-text-3); border-radius: 4px;
+  transition: var(--k-transition-fast);
+}
+.sectionAction:hover { background: var(--k-glass); color: var(--k-text); }
+
+/* Workspace creation input */
+.addWsRow { display: flex; gap: 4px; margin-top: 5px; }
+.addWsInput {
+  flex: 1; background: var(--k-surface-2); border: 1px solid var(--k-border-2);
+  border-radius: var(--k-radius-sm); padding: 4px 8px;
+  font-size: var(--k-text-xs); color: var(--k-text); font-family: var(--k-font-ui);
+  outline: none;
+}
+.addWsInput:focus { border-color: var(--k-fox); }
+.addWsBtn {
+  padding: 4px 10px; border-radius: var(--k-radius-sm);
+  background: var(--k-fox); color: white;
+  font-size: var(--k-text-xs); cursor: pointer;
+  transition: var(--k-transition);
+}
+.addWsBtn:hover { filter: brightness(1.1); }
+
+/* Lens indicator in footer */
+.lensIndicator {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+.lensLabel { font-size: 9.5px; color: var(--k-text-3); flex-shrink: 0; }
+.lensValue {
+  font-size: 9.5px; color: var(--k-fox-2);
+  text-transform: capitalize;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* TabItem indent for grouped tabs */
+.indented {
+  padding-left: 18px !important;
+}

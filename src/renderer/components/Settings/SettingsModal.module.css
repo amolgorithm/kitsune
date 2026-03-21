@@ -108,3 +108,16 @@
 .aboutTitle { font-size: var(--k-text-2xl); font-weight: var(--k-weight-bold); letter-spacing: -0.03em; }
 .aboutVersion { font-size: var(--k-text-sm); color: var(--k-text-3); margin-top: 2px; }
 .aboutDesc { font-size: var(--k-text-sm); color: var(--k-text-2); line-height: 1.7; }
+
+/* API key row + test button */
+.keyRow { display: flex; gap: 6px; align-items: center; }
+.testBtn {
+  padding: 5px 10px; border-radius: var(--k-radius-sm); font-size: var(--k-text-xs);
+  font-weight: var(--k-weight-medium); cursor: pointer; transition: var(--k-transition);
+  border: 1px solid var(--k-border-2); background: var(--k-surface-3); color: var(--k-text-2);
+  white-space: nowrap;
+}
+.testBtn:hover { border-color: var(--k-ai); color: var(--k-ai-2); }
+.testBtn:disabled { opacity: 0.5; cursor: not-allowed; }
+.testBtn_ok   { background: var(--k-green-dim) !important; border-color: var(--k-green) !important; color: var(--k-green) !important; }
+.testBtn_fail { background: var(--k-red-dim) !important; border-color: var(--k-red) !important; color: var(--k-red) !important; }

@@ -195,3 +195,53 @@
   width: 5px; height: 5px; border-radius: var(--k-radius-full);
   background: var(--k-ai-2); animation: k-dot-bounce 1.2s ease-in-out infinite;
 }
+
+/* Research / Notes / Tasks shared form styles */
+.researchSetup { display: flex; flex-direction: column; gap: 12px; padding-bottom: 8px; }
+.researchDesc  { font-size: var(--k-text-xs); color: var(--k-text-3); line-height: 1.6; }
+.formGroup     { display: flex; flex-direction: column; gap: 5px; }
+.formLabel     { font-size: var(--k-text-xs); font-weight: var(--k-weight-semibold); color: var(--k-text-3); text-transform: uppercase; letter-spacing: 0.07em; }
+.formInput, .formTextarea {
+  background: var(--k-surface-3); border: 1px solid var(--k-border-2);
+  border-radius: var(--k-radius-sm); padding: 7px 10px;
+  font-size: var(--k-text-sm); color: var(--k-text); font-family: var(--k-font-ui);
+  outline: none; transition: var(--k-transition);
+}
+.formInput:focus, .formTextarea:focus { border-color: var(--k-ai); }
+.formTextarea { resize: vertical; min-height: 72px; }
+.formHint { font-size: var(--k-text-xs); color: var(--k-text-3); }
+.tabCheckList  { display: flex; flex-direction: column; gap: 4px; max-height: 120px; overflow-y: auto; }
+.tabCheckItem  { display: flex; align-items: center; gap: 8px; font-size: var(--k-text-sm); color: var(--k-text-2); cursor: pointer; padding: 2px 0; }
+.tabCheckItem input { accent-color: var(--k-ai); flex-shrink: 0; }
+.primaryBtn {
+  padding: 8px 14px; border-radius: var(--k-radius-sm); font-size: var(--k-text-sm);
+  font-weight: var(--k-weight-medium); background: var(--k-ai);
+  color: white; cursor: pointer; transition: var(--k-transition);
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+}
+.primaryBtn:hover:not(:disabled) { background: var(--k-ai-2); }
+.primaryBtn:disabled { opacity: 0.45; cursor: not-allowed; }
+.resetBtn {
+  font-size: var(--k-text-sm); color: var(--k-ai-2); background: none;
+  padding: 4px 0; cursor: pointer; text-align: left;
+}
+.markdownBody { font-size: 12px; line-height: 1.7; color: var(--k-text-2); white-space: pre-wrap; }
+.tagRow { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 8px; }
+.tag { background: var(--k-ai-dim); color: var(--k-ai-2); border-radius: var(--k-radius-full); padding: 2px 8px; font-size: var(--k-text-xs); }
+.taskItem { display: flex; align-items: flex-start; gap: 8px; padding: 4px 0; font-size: var(--k-text-sm); color: var(--k-text-2); }
+.taskItem input { accent-color: var(--k-ai); margin-top: 2px; flex-shrink: 0; }
+.taskDone { text-decoration: line-through; opacity: 0.5; }
+.errorState { padding: 12px; display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+.errorMsg { font-size: var(--k-text-xs); color: var(--k-red); line-height: 1.5; }
+.errorIcon { color: var(--k-yellow); flex-shrink: 0; }
+.configPrompt { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 24px 16px; text-align: center; }
+.configIcon { color: var(--k-yellow); }
+.configTitle { font-size: var(--k-text-base); font-weight: var(--k-weight-semibold); }
+.configDesc { font-size: var(--k-text-sm); color: var(--k-text-3); line-height: 1.5; }
+.configBtn {
+  display: flex; align-items: center; gap: 6px; padding: 7px 14px;
+  border-radius: var(--k-radius-sm); background: var(--k-surface-2);
+  border: 1px solid var(--k-border-2); font-size: var(--k-text-sm);
+  color: var(--k-text); cursor: pointer; transition: var(--k-transition);
+}
+.configBtn:hover { border-color: var(--k-fox); }

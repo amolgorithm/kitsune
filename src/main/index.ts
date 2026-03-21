@@ -23,7 +23,7 @@ const DEV_URL    = process.env['ELECTRON_RENDERER_URL'] ?? 'http://localhost:517
 const PRELOAD    = join(__dirname, '../preload/preload.js')
 const INDEX_HTML = join(__dirname, '../../dist/index.html')
 
-console.log('[main] DEV:', DEV, '| URL:', DEV_URL, '| PRELOAD:', PRELOAD)
+console.log('[main] DEV:', DEV, '| URL:', DEV_URL)
 
 let mainWindow: BrowserWindow | null = null
 let settings: SettingsStore
@@ -42,7 +42,6 @@ app.whenReady().then(async () => {
   workspaceManager = new WorkspaceManager(settings)
   await workspaceManager.init()
 
-  // PrivacyEngine hooks session — must init before creating any window
   privacyEngine = new PrivacyEngine(session.defaultSession, settings)
   await privacyEngine.init()
 
@@ -50,6 +49,7 @@ app.whenReady().then(async () => {
   cleaveManager = new CleaveManager()
 
   mainWindow = createMainWindow()
+
   tabManager = new TabManager(workspaceManager, settings, mainWindow)
 
   hibernationScheduler = new HibernationScheduler(tabManager, settings)
@@ -58,7 +58,8 @@ app.whenReady().then(async () => {
   registerTabIPC(ipcMain, tabManager, mainWindow)
   registerAIIPC(ipcMain, aiService, tabManager)
   registerPrivacyIPC(ipcMain, privacyEngine)
-  registerWorkspaceIPC(ipcMain, workspaceManager)
+  // Pass tabManager + aiService so workspace IPC can do AI clustering
+  registerWorkspaceIPC(ipcMain, workspaceManager, tabManager, aiService, mainWindow)
   registerCleaveIPC(ipcMain, cleaveManager, mainWindow)
   registerSettingsIPC(ipcMain, settings)
 
@@ -86,12 +87,8 @@ app.on('window-all-closed', () => {
 
 function createMainWindow(): BrowserWindow {
   const win = new BrowserWindow({
-    width: 1440,
-    height: 900,
-    minWidth: 900,
-    minHeight: 600,
-    backgroundColor: '#0d0f12',
-    show: false,
+    width: 1440, height: 900, minWidth: 900, minHeight: 600,
+    backgroundColor: '#0d0f12', show: false,
     ...(IS_MAC
       ? { titleBarStyle: 'hiddenInset', trafficLightPosition: { x: 14, y: 9 } }
       : { frame: false }
@@ -112,11 +109,8 @@ function createMainWindow(): BrowserWindow {
     if (!url.includes('devtools://')) console.error('[renderer] LOAD FAILED:', code, desc, url)
   })
 
-  if (DEV) {
-    win.loadURL(DEV_URL)
-  } else {
-    win.loadFile(INDEX_HTML)
-  }
+  if (DEV) win.loadURL(DEV_URL)
+  else win.loadFile(INDEX_HTML)
 
   win.once('ready-to-show', () => win.show())
   win.on('resize',     () => tabManager?.repositionActiveView())

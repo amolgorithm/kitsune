@@ -8,6 +8,9 @@ export function registerAIIPC(
   ai: AIService,
   tabManager: TabManager,
 ): void {
+  // Status check — renderer calls this to show AI readiness
+  ipcMain.handle('ai:status', () => ai.getStatus())
+
   ipcMain.handle('ai:summarize-page', async (_e, tabId: string) => {
     const tab = tabManager.getTab(tabId)
     if (!tab) throw new Error('Tab not found')
@@ -19,31 +22,19 @@ export function registerAIIPC(
     const pages = await Promise.all(
       tabIds.map(async (id) => {
         const tab = tabManager.getTab(id)
-        return {
-          tabId: id,
-          url: tab?.url ?? '',
-          title: tab?.title ?? '',
-          text: await tabManager.getPageText(id),
-        }
+        return { tabId: id, url: tab?.url ?? '', title: tab?.title ?? '', text: await tabManager.getPageText(id) }
       })
     )
     return ai.summarizeCrossPage({ topic, pages })
   })
 
   ipcMain.handle('ai:chat', async (_e, { messages, tabId }: { messages: any[]; tabId?: string }) => {
-    let pageContext: string | undefined
-    if (tabId) {
-      pageContext = await tabManager.getPageText(tabId, 3000)
-    }
+    const pageContext = tabId ? await tabManager.getPageText(tabId, 3000) : undefined
     return ai.chat({ messages, pageContext })
   })
 
   ipcMain.handle('ai:cluster-tabs', async (_e, workspaceId: string) => {
-    const tabs = tabManager.listTabs(workspaceId).map(t => ({
-      id: t.id,
-      title: t.title,
-      url: t.url,
-    }))
+    const tabs = tabManager.listTabs(workspaceId).map(t => ({ id: t.id, title: t.title, url: t.url }))
     return ai.clusterTabs(tabs)
   })
 
@@ -54,6 +45,8 @@ export function registerAIIPC(
   ipcMain.handle('ai:risk-score', async (_e, url: string) => {
     return ai.scorePageRisk(url)
   })
+
+  ipcMain.handle('ai:generate-note', async (_e, params: any) => {
+    return ai.generateNote(params)
+  })
 }
-
-

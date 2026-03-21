@@ -1,11 +1,4 @@
 // src/shared/types.ts
-// ─────────────────────────────────────────────────────────────────
-// Kitsune — Shared Type Definitions
-// Used by both main process and renderer. Never import Electron
-// APIs here; this file must be isomorphic.
-// ─────────────────────────────────────────────────────────────────
-
-// ─── Tabs ────────────────────────────────────────────────────────
 
 export type TabStatus = 'loading' | 'ready' | 'error' | 'hibernated'
 
@@ -13,19 +6,15 @@ export interface KitsuneTab {
   id: string
   url: string
   title: string
-  favicon?: string          // data URI or https URL
+  favicon?: string
   status: TabStatus
   groupId?: string
   workspaceId: string
   createdAt: number
   lastAccessedAt: number
-  /** Bytes of memory consumed when active; 0 when hibernated */
   memoryBytes: number
-  /** Whether the webContents has been discarded to save RAM */
   hibernated: boolean
-  /** AI-assigned topic cluster label */
   aiClusterLabel?: string
-  /** Risk score 0–1 assigned before page load */
   riskScore?: number
   isPinned: boolean
   isPrivate: boolean
@@ -35,20 +24,17 @@ export interface KitsuneTab {
 export interface TabGroup {
   id: string
   label: string
-  color: string             // hex
+  color: string
   tabIds: string[]
   workspaceId: string
   collapsed: boolean
-  /** true = auto-created by AI clustering, false = user-created */
   aiManaged: boolean
 }
-
-// ─── Workspaces ──────────────────────────────────────────────────
 
 export interface Workspace {
   id: string
   name: string
-  icon: string              // emoji or URL
+  icon: string
   color: string
   tabIds: string[]
   groupIds: string[]
@@ -66,8 +52,6 @@ export interface Bookmark {
   tags: string[]
   addedAt: number
 }
-
-// ─── AI Panel ────────────────────────────────────────────────────
 
 export type AIPanelTab = 'summary' | 'research' | 'notes' | 'tasks' | 'chat'
 
@@ -103,7 +87,7 @@ export interface Citation {
 export interface SmartNote {
   id: string
   workspaceId: string
-  content: string           // markdown
+  content: string
   citations: Citation[]
   sourceTabId?: string
   sourceUrl?: string
@@ -127,10 +111,8 @@ export interface ChatMessage {
   role: 'user' | 'assistant'
   content: string
   createdAt: number
-  tabContext?: string[]    // tab IDs included as context
+  tabContext?: string[]
 }
-
-// ─── Privacy / Security ──────────────────────────────────────────
 
 export type TrackerCategory =
   | 'analytics'
@@ -151,14 +133,12 @@ export interface BlockedTracker {
 export interface PageRiskReport {
   tabId: string
   url: string
-  riskScore: number         // 0–1
+  riskScore: number
   riskLevel: 'safe' | 'low' | 'medium' | 'high' | 'critical'
-  signals: string[]         // human-readable reasons
+  signals: string[]
   trackerCount: number
   analyzedAt: number
 }
-
-// ─── Cleave (split-pane layout) ──────────────────────────────────
 
 export type SplitDirection = 'horizontal' | 'vertical'
 
@@ -166,85 +146,50 @@ export interface PaneNode {
   id: string
   type: 'split' | 'leaf'
   direction?: SplitDirection
-  sizes?: number[]          // percentage, must sum to 100
+  sizes?: number[]
   children?: PaneNode[]
-  // leaf only:
   tabId?: string
   isAIPane?: boolean
 }
-
-// ─── Lens Profiles ───────────────────────────────────────────────
 
 export interface LensProfile {
   id: string
   name: string
   icon: string
   description: string
-  /** CSS class applied to page wrapper */
   cssClass: string
-  /** Reader mode forced on? */
   forceReaderMode: boolean
-  /** AI panel default tab when lens is active */
   defaultAITab: AIPanelTab
-  /** Hotkey to activate e.g. "ctrl+shift+1" */
   hotkey?: string
   builtIn: boolean
 }
 
-// ─── IPC Channel Map ─────────────────────────────────────────────
-// Keep channel names as typed string literals to prevent typos.
-
 export type IPCChannel =
-  // Tab lifecycle
-  | 'tab:create'
-  | 'tab:close'
-  | 'tab:navigate'
-  | 'tab:activate'
-  | 'tab:hibernate'
-  | 'tab:wake'
-  | 'tab:update'
-  | 'tab:list'
-  // Groups
-  | 'group:create'
-  | 'group:update'
-  | 'group:delete'
-  | 'group:ai-cluster'
-  // Workspaces
-  | 'workspace:create'
-  | 'workspace:switch'
-  | 'workspace:save'
-  | 'workspace:list'
-  // AI
-  | 'ai:summarize-page'
-  | 'ai:summarize-cross'
-  | 'ai:chat'
-  | 'ai:risk-score'
-  | 'ai:cluster-tabs'
-  | 'ai:extract-tasks'
-  // Privacy
-  | 'privacy:get-report'
-  | 'privacy:blocked-list'
-  // Cleave
-  | 'cleave:set-layout'
-  | 'cleave:get-layout'
-  // Settings
-  | 'settings:get'
-  | 'settings:set'
-
-// ─── Settings ────────────────────────────────────────────────────
+  | 'tab:create' | 'tab:close' | 'tab:navigate' | 'tab:activate'
+  | 'tab:hibernate' | 'tab:wake' | 'tab:update' | 'tab:list'
+  | 'tab:go-back' | 'tab:go-forward' | 'tab:reload'
+  | 'tab:set-ai-panel-width' | 'tab:modal-open' | 'tab:modal-close'
+  | 'tab:nav-state'
+  | 'group:create' | 'group:update' | 'group:delete' | 'group:list'
+  | 'workspace:create' | 'workspace:switch' | 'workspace:save' | 'workspace:list'
+  | 'ai:status' | 'ai:summarize-page' | 'ai:summarize-cross' | 'ai:chat'
+  | 'ai:risk-score' | 'ai:cluster-tabs' | 'ai:extract-tasks' | 'ai:generate-note'
+  | 'privacy:get-report' | 'privacy:blocked-list'
+  | 'cleave:set-layout' | 'cleave:get-layout'
+  | 'settings:get' | 'settings:set'
+  | 'window:minimize' | 'window:maximize' | 'window:close'
 
 export interface KitsuneSettings {
-  // AI
-  aiProvider: 'anthropic' | 'local'
-  anthropicApiKey: string
+  // AI — using HackClub free API
+  hackclubApiKey: string
+  aiModel: string
   aiEnabled: boolean
-  aiRunLocal: boolean
 
   // Tab management
   autoHibernateEnabled: boolean
-  hibernateAfterMs: number          // default 600_000 (10 min)
+  hibernateAfterMs: number
   autoGroupTabs: boolean
-  maxActiveTabMemoryMB: number      // soft cap before hibernation
+  maxActiveTabMemoryMB: number
 
   // Privacy
   trackerBlockingEnabled: boolean
@@ -263,10 +208,9 @@ export interface KitsuneSettings {
 }
 
 export const DEFAULT_SETTINGS: KitsuneSettings = {
-  aiProvider: 'anthropic',
-  anthropicApiKey: '',
+  hackclubApiKey: 'sk-hc-v1-dce4361dac14412aaada4c6fc55bdf3dbc7d35292247494db9f25686229cbbf2',
+  aiModel: 'google/gemini-2.5-flash',
   aiEnabled: true,
-  aiRunLocal: false,
 
   autoHibernateEnabled: true,
   hibernateAfterMs: 600_000,
@@ -284,12 +228,12 @@ export const DEFAULT_SETTINGS: KitsuneSettings = {
   activeLensId: 'default',
 
   hotkeys: {
-    'cmd+t': 'tab:create',
-    'cmd+w': 'tab:close',
-    'cmd+k': 'command-palette',
-    'cmd+\\': 'cleave:toggle',
-    'cmd+shift+r': 'reader-mode',
-    'cmd+shift+a': 'ai-panel',
+    'ctrl+k': 'command-palette',
+    'ctrl+t': 'tab:create',
+    'ctrl+w': 'tab:close',
+    'ctrl+\\': 'cleave:toggle',
+    'ctrl+shift+a': 'ai-panel',
+    'ctrl+,': 'settings',
     'ctrl+1': 'lens:default',
     'ctrl+2': 'lens:research',
     'ctrl+3': 'lens:coding',

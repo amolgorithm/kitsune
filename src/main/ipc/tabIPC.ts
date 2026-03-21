@@ -7,24 +7,23 @@ export function registerTabIPC(
   tabManager: TabManager,
   win: BrowserWindow,
 ): void {
-  ipcMain.handle('tab:create', async (_e, opts) => tabManager.createTab(opts))
-  ipcMain.handle('tab:close',  async (_e, id: string) => tabManager.closeTab(id))
-  ipcMain.handle('tab:navigate', async (_e, { id, url }: { id: string; url: string }) =>
-    tabManager.navigateTab(id, url)
-  )
+  ipcMain.handle('tab:create',    async (_e, opts) => tabManager.createTab(opts))
+  ipcMain.handle('tab:close',     async (_e, id: string) => tabManager.closeTab(id))
+  ipcMain.handle('tab:navigate',  async (_e, { id, url }: { id: string; url: string }) =>
+    tabManager.navigateTab(id, url))
   ipcMain.handle('tab:activate',  async (_e, id: string) => tabManager.activateTab(id))
   ipcMain.handle('tab:hibernate', async (_e, id: string) => tabManager.hibernateTab(id))
   ipcMain.handle('tab:wake',      async (_e, id: string) => tabManager.wakeTab(id))
-  ipcMain.handle('tab:list', async (_e, workspaceId?: string) => tabManager.listTabs(workspaceId))
-  ipcMain.handle('tab:update', async (_e, { id, patch }: { id: string; patch: any }) =>
-    tabManager.updateTabMeta(id, patch)
-  )
-  // Called by renderer when AI panel opens/closes to adjust BrowserView bounds
+  ipcMain.handle('tab:list',      async (_e, workspaceId?: string) => tabManager.listTabs(workspaceId))
   ipcMain.handle('tab:set-ai-panel-width', async (_e, width: number) =>
-    tabManager.setAIPanelWidth(width)
-  )
-  // Called by renderer when it needs the back/forward/reload to work
-  ipcMain.handle('tab:go-back',    (_e, id: string) => { /* TODO */ })
-  ipcMain.handle('tab:go-forward', (_e, id: string) => { /* TODO */ })
-  ipcMain.handle('tab:reload',     (_e, id: string) => { /* TODO */ })
+    tabManager.setAIPanelWidth(width))
+
+  // Navigation controls
+  ipcMain.handle('tab:go-back',    (_e, id: string) => tabManager.goBack(id))
+  ipcMain.handle('tab:go-forward', (_e, id: string) => tabManager.goForward(id))
+  ipcMain.handle('tab:reload',     (_e, id: string) => tabManager.reload(id))
+
+  // Modal overlay management — hides BrowserView so React modals paint on top
+  ipcMain.handle('tab:modal-open',  () => tabManager.hideActiveView())
+  ipcMain.handle('tab:modal-close', () => tabManager.showActiveView())
 }

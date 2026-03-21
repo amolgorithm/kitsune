@@ -115,3 +115,17 @@
   background: var(--k-red-dim);
   color: var(--k-red);
 }
+
+/* RAM badge */
+.ramBadge {
+  font-size: 8px;
+  font-family: var(--k-font-mono);
+  color: var(--k-text-3);
+  padding: 0 3px;
+  border-radius: 3px;
+  background: var(--k-surface-3);
+  line-height: 14px;
+}
+
+/* Indent for grouped tabs */
+.indent { padding-left: 20px; }

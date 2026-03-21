@@ -1,47 +1,51 @@
 // src/renderer/components/Navbar/Navbar.tsx
 import { useState, useRef, useEffect, KeyboardEvent } from 'react'
 import { useBrowserStore, useActiveTab } from '../../stores/browserStore'
-import { TabIPC } from '../../lib/ipc'
 import {
   IconBack, IconForward, IconReload, IconStop,
   IconLock, IconLockOpen, IconBookmark, IconShare,
-  IconShield, IconSparkle, IconBook, IconDots,
-  IconSearch,
+  IconShield, IconSparkle, IconBook, IconDots, IconSearch,
 } from '../Icons'
 import styles from './Navbar.module.css'
 
 export function Navbar() {
   const activeTab          = useActiveTab()
   const activeTabId        = useBrowserStore(s => s.activeTabId)
-  const urlBarValue        = useBrowserStore(s => s.urlBarValue)
   const urlBarFocused      = useBrowserStore(s => s.urlBarFocused)
   const aiPanelOpen        = useBrowserStore(s => s.aiPanelOpen)
+  const navState           = useBrowserStore(s => s.navState)
 
   const navigateTab        = useBrowserStore(s => s.navigateTab)
   const toggleAIPanel      = useBrowserStore(s => s.toggleAIPanel)
   const openCommandPalette = useBrowserStore(s => s.openCommandPalette)
   const setUrlBarFocused   = useBrowserStore(s => s.setUrlBarFocused)
-  const setUrlBarValue     = useBrowserStore(s => s.setUrlBarValue)
+  const goBack             = useBrowserStore(s => s.goBack)
+  const goForward          = useBrowserStore(s => s.goForward)
+  const reload             = useBrowserStore(s => s.reload)
 
-  const inputRef = useRef<HTMLInputElement>(null)
+  const inputRef   = useRef<HTMLInputElement>(null)
   const [localValue, setLocalValue] = useState('')
 
-  // Sync local value with active tab URL when not focused
+  const nav         = activeTabId ? (navState[activeTabId] ?? { canGoBack: false, canGoForward: false }) : { canGoBack: false, canGoForward: false }
+  const isLoading   = activeTab?.status === 'loading'
+  const isNewTab    = !activeTab || activeTab.url === 'kitsune://newtab'
+  const isSecure    = activeTab?.url?.startsWith('https://') ?? false
+  const displayUrl  = isNewTab ? '' : formatDisplay(activeTab?.url ?? '')
+
+  // Sync local value when not focused
   useEffect(() => {
-    if (!urlBarFocused) {
-      setLocalValue(formatDisplay(activeTab?.url ?? ''))
-    }
-  }, [activeTab?.url, urlBarFocused])
+    if (!urlBarFocused) setLocalValue(displayUrl)
+  }, [displayUrl, urlBarFocused])
 
   const handleFocus = () => {
     setUrlBarFocused(true)
-    setLocalValue(activeTab?.url ?? '')
+    setLocalValue(activeTab?.url === 'kitsune://newtab' ? '' : (activeTab?.url ?? ''))
     setTimeout(() => inputRef.current?.select(), 0)
   }
 
   const handleBlur = () => {
     setUrlBarFocused(false)
-    setLocalValue(formatDisplay(activeTab?.url ?? ''))
+    setLocalValue(displayUrl)
   }
 
   const commit = () => {
@@ -53,34 +57,33 @@ export function Navbar() {
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') { e.preventDefault(); commit() }
     if (e.key === 'Escape') {
-      setLocalValue(formatDisplay(activeTab?.url ?? ''))
+      setLocalValue(displayUrl)
       inputRef.current?.blur()
     }
   }
 
-  const isSecure  = activeTab?.url?.startsWith('https://') ?? false
-  const isLoading = activeTab?.status === 'loading'
-  const isNewTab  = !activeTab || activeTab.url === 'kitsune://newtab'
-
-  // When AI panel opens/closes, tell main process to resize BrowserView
-  useEffect(() => {
-    TabIPC.setAIPanelWidth(aiPanelOpen ? 340 : 0)
-  }, [aiPanelOpen])
-
   return (
     <div className={styles.navbar}>
-      {/* Nav buttons */}
       <div className={styles.navGroup}>
-        <NavBtn title="Back" disabled icon={<IconBack size={15} />} />
-        <NavBtn title="Forward" disabled icon={<IconForward size={15} />} />
+        <NavBtn
+          title="Back"
+          disabled={!nav.canGoBack}
+          icon={<IconBack size={15} />}
+          onClick={() => activeTabId && goBack(activeTabId)}
+        />
+        <NavBtn
+          title="Forward"
+          disabled={!nav.canGoForward}
+          icon={<IconForward size={15} />}
+          onClick={() => activeTabId && goForward(activeTabId)}
+        />
         <NavBtn
           title={isLoading ? 'Stop' : 'Reload'}
           icon={isLoading ? <IconStop size={15} /> : <IconReload size={15} />}
-          onClick={() => {}}
+          onClick={() => activeTabId && (isLoading ? null : reload(activeTabId))}
         />
       </div>
 
-      {/* URL bar */}
       <div
         className={`${styles.urlbar} ${urlBarFocused ? styles.urlbarFocused : ''}`}
         onClick={() => inputRef.current?.focus()}
@@ -98,7 +101,7 @@ export function Navbar() {
           ref={inputRef}
           type="text"
           className={styles.urlInput}
-          value={urlBarFocused ? localValue : formatDisplay(activeTab?.url ?? '')}
+          value={urlBarFocused ? localValue : displayUrl}
           onChange={e => setLocalValue(e.target.value)}
           onFocus={handleFocus}
           onBlur={handleBlur}
@@ -118,9 +121,8 @@ export function Navbar() {
         )}
       </div>
 
-      {/* Right controls */}
       <div className={styles.navGroup}>
-        <button className={styles.shieldBtn} title="Privacy & security">
+        <button className={styles.shieldBtn} title="Privacy report">
           <IconShield size={11} />
           <span>Protected</span>
         </button>
@@ -128,7 +130,7 @@ export function Navbar() {
         <button
           className={`${styles.aiBtn} ${aiPanelOpen ? styles.aiBtnActive : ''}`}
           onClick={toggleAIPanel}
-          title="Toggle AI Panel (⌘⇧A)"
+          title="Toggle AI Panel (Ctrl+Shift+A)"
         >
           <IconSparkle size={11} />
           <span>AI</span>
@@ -141,9 +143,9 @@ export function Navbar() {
   )
 }
 
-function NavBtn({
-  icon, title, onClick, disabled,
-}: { icon: React.ReactNode; title?: string; onClick?: () => void; disabled?: boolean }) {
+function NavBtn({ icon, title, onClick, disabled }: {
+  icon: React.ReactNode; title?: string; onClick?: () => void; disabled?: boolean
+}) {
   return (
     <button
       className={`${styles.navBtn} ${disabled ? styles.disabled : ''}`}

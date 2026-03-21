@@ -5,9 +5,19 @@ import { SettingsIPC } from '../../lib/ipc'
 import type { KitsuneSettings } from '../../../shared/types'
 import {
   IconSparkle, IconTab, IconShield, IconPalette,
-  IconHotkey, IconInfo, IconClose,
+  IconHotkey, IconInfo, IconClose, IconCheck,
 } from '../Icons'
 import styles from './SettingsModal.module.css'
+
+// Available models from HackClub / OpenRouter
+const AI_MODELS = [
+  { value: 'google/gemini-2.5-flash',        label: 'Gemini 2.5 Flash (recommended)' },
+  { value: 'google/gemini-3-flash-preview',  label: 'Gemini 3 Flash Preview' },
+  { value: 'deepseek/deepseek-r1-0528',      label: 'DeepSeek R1 (reasoning)' },
+  { value: 'qwen/qwen3-235b-a22b',           label: 'Qwen3 235B (powerful)' },
+  { value: 'deepseek/deepseek-v3.2',         label: 'DeepSeek V3.2' },
+  { value: 'moonshotai/kimi-k2-thinking',    label: 'Kimi K2 Thinking' },
+]
 
 type Section = 'ai' | 'tabs' | 'privacy' | 'appearance' | 'hotkeys' | 'about'
 
@@ -25,8 +35,11 @@ export function SettingsModal() {
   const [section, setSection]   = useState<Section>('ai')
   const [settings, setSettings] = useState<KitsuneSettings | null>(null)
   const [saved, setSaved]       = useState(false)
+  const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'ok' | 'fail'>('idle')
 
-  useEffect(() => { SettingsIPC.get().then(setSettings) }, [])
+  useEffect(() => {
+    SettingsIPC.get().then(setSettings)
+  }, [])
 
   useEffect(() => {
     const h = (e: KeyboardEvent) => { if (e.key === 'Escape') closeSettings() }
@@ -43,13 +56,33 @@ export function SettingsModal() {
     setTimeout(() => setSaved(false), 1500)
   }
 
+  const testAI = async () => {
+    if (!settings) return
+    setTestStatus('testing')
+    try {
+      const res = await fetch('https://ai.hackclub.com/proxy/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${settings.hackclubApiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: settings.aiModel,
+          messages: [{ role: 'user', content: 'Reply with just: OK' }],
+          max_tokens: 5,
+        }),
+      })
+      if (res.ok) setTestStatus('ok')
+      else setTestStatus('fail')
+    } catch { setTestStatus('fail') }
+    setTimeout(() => setTestStatus('idle'), 3000)
+  }
+
   if (!settings) return null
 
   return (
     <div className={styles.overlay} onClick={closeSettings}>
       <div className={`${styles.modal} k-scale-in`} onClick={e => e.stopPropagation()}>
-
-        {/* Sidebar */}
         <nav className={styles.sidebar}>
           <div className={styles.sidebarHeader}>
             <span className={styles.sidebarTitle}>Settings</span>
@@ -61,16 +94,18 @@ export function SettingsModal() {
               className={`${styles.navItem} ${section === item.id ? styles.navActive : ''}`}
               onClick={() => setSection(item.id)}
             >
-              {item.icon}
-              <span>{item.label}</span>
+              {item.icon}<span>{item.label}</span>
             </button>
           ))}
-          {saved && <div className={styles.savedBadge}>Saved</div>}
+          {saved && (
+            <div className={styles.savedBadge}>
+              <IconCheck size={11} /> Saved
+            </div>
+          )}
         </nav>
 
-        {/* Content */}
         <div className={styles.content}>
-          {section === 'ai'         && <AISection         s={settings} update={update} />}
+          {section === 'ai'         && <AISection         s={settings} update={update} testAI={testAI} testStatus={testStatus} />}
           {section === 'tabs'       && <TabsSection       s={settings} update={update} />}
           {section === 'privacy'    && <PrivacySection    s={settings} update={update} />}
           {section === 'appearance' && <AppearanceSection s={settings} update={update} />}
@@ -84,31 +119,47 @@ export function SettingsModal() {
 
 type U = <K extends keyof KitsuneSettings>(key: K, value: KitsuneSettings[K]) => void
 
-function AISection({ s, update }: { s: KitsuneSettings; update: U }) {
+function AISection({ s, update, testAI, testStatus }: {
+  s: KitsuneSettings; update: U;
+  testAI: () => void; testStatus: string
+}) {
   return (
     <div className={styles.section}>
       <h2 className={styles.sectionTitle}>AI & Intelligence</h2>
-      <p className={styles.sectionDesc}>Configure how Kitsune's AI works and where it runs.</p>
+      <p className={styles.sectionDesc}>Powered by HackClub AI — free, no account required.</p>
 
-      <Row label="Enable AI" desc="Master switch for all AI features">
+      <Row label="Enable AI" desc="Master switch for all AI-powered features">
         <Toggle on={s.aiEnabled} onChange={v => update('aiEnabled', v)} />
       </Row>
-      <Row label="Anthropic API Key" desc="Required for Claude-powered features. Stored locally, never shared.">
-        <input
-          type="password"
-          className={styles.textInput}
-          placeholder="sk-ant-…"
-          defaultValue={s.anthropicApiKey}
-          onBlur={e => update('anthropicApiKey', e.target.value)}
-        />
+      <Row label="HackClub API Key" desc="Pre-filled with shared key. You can use your own from ai.hackclub.com">
+        <div className={styles.keyRow}>
+          <input
+            type="password"
+            className={styles.textInput}
+            defaultValue={s.hackclubApiKey}
+            onBlur={e => update('hackclubApiKey', e.target.value)}
+            placeholder="sk-hc-v1-…"
+          />
+          <button
+            className={`${styles.testBtn} ${styles[`testBtn_${testStatus}`]}`}
+            onClick={testAI}
+            disabled={testStatus === 'testing'}
+          >
+            {testStatus === 'testing' ? '…' : testStatus === 'ok' ? '✓ OK' : testStatus === 'fail' ? '✗ Fail' : 'Test'}
+          </button>
+        </div>
       </Row>
-      <Row label="Auto-summarize pages" desc="Generate a summary when you open the AI panel on a page">
-        <Toggle on={s.autoGroupTabs} onChange={v => update('autoGroupTabs', v)} accent="ai" />
+      <Row label="AI Model" desc="Model to use for summaries, chat, and research">
+        <Select
+          value={s.aiModel}
+          options={AI_MODELS}
+          onChange={v => update('aiModel', v)}
+        />
       </Row>
       <Row label="AI Tab Grouping" desc="Automatically cluster open tabs by topic">
         <Toggle on={s.autoGroupTabs} onChange={v => update('autoGroupTabs', v)} accent="ai" />
       </Row>
-      <Row label="Pre-load Risk Scoring" desc="Score page safety before loading based on URL patterns">
+      <Row label="Pre-load Risk Scoring" desc="Score page safety before loading based on URL">
         <Toggle on={s.aiRiskScoringEnabled} onChange={v => update('aiRiskScoringEnabled', v)} accent="ai" />
       </Row>
     </div>
@@ -120,7 +171,6 @@ function TabsSection({ s, update }: { s: KitsuneSettings; update: U }) {
     <div className={styles.section}>
       <h2 className={styles.sectionTitle}>Tabs & Memory</h2>
       <p className={styles.sectionDesc}>Keep Kitsune fast with automatic RAM management.</p>
-
       <Row label="Auto-Hibernate Tabs" desc="Suspend idle tabs to free memory">
         <Toggle on={s.autoHibernateEnabled} onChange={v => update('autoHibernateEnabled', v)} />
       </Row>
@@ -141,21 +191,11 @@ function TabsSection({ s, update }: { s: KitsuneSettings; update: U }) {
           value={String(s.maxActiveTabMemoryMB)}
           options={[
             { value: '150',  label: '150 MB' },
-            { value: '300',  label: '300 MB' },
+            { value: '300',  label: '300 MB (default)' },
             { value: '500',  label: '500 MB' },
             { value: '1000', label: '1 GB' },
           ]}
           onChange={v => update('maxActiveTabMemoryMB', parseInt(v))}
-        />
-      </Row>
-      <Row label="Tab Layout" desc="Vertical sidebar or horizontal top bar">
-        <Select
-          value={s.tabLayout}
-          options={[
-            { value: 'vertical',   label: 'Vertical (sidebar)' },
-            { value: 'horizontal', label: 'Horizontal (top)' },
-          ]}
-          onChange={v => update('tabLayout', v as any)}
         />
       </Row>
     </div>
@@ -168,20 +208,19 @@ function PrivacySection({ s, update }: { s: KitsuneSettings; update: U }) {
       <h2 className={styles.sectionTitle}>Privacy & Security</h2>
       <div className={styles.securityBadge}>
         <IconShield size={13} />
-        LibreWolf-equivalent protection
+        LibreWolf-equivalent protection active
       </div>
-
-      <Row label="Block Trackers" desc="Block known tracking scripts and ad networks at the network level">
+      <Row label="Block Trackers" desc="Block known tracking scripts and ad networks">
         <Toggle on={s.trackerBlockingEnabled} onChange={v => update('trackerBlockingEnabled', v)} />
       </Row>
-      <Row label="Block Ads" desc="Block advertisements using EasyList + uBlock filter lists">
+      <Row label="Block Ads" desc="Block advertisements using EasyList + uBlock filters">
         <Toggle on={s.adBlockingEnabled} onChange={v => update('adBlockingEnabled', v)} />
       </Row>
-      <Row label="Fingerprint Protection" desc="Randomize canvas, WebGL, and device APIs to prevent tracking">
+      <Row label="Fingerprint Protection" desc="Randomize canvas, WebGL, and device APIs">
         <Toggle on={s.fingerprintProtection} onChange={v => update('fingerprintProtection', v)} />
       </Row>
-      <Row label="AI Threat Detection" desc="Use AI heuristics to catch novel trackers not on any list">
-        <Toggle on={s.trackerBlockingEnabled} onChange={v => update('trackerBlockingEnabled', v)} accent="ai" />
+      <Row label="AI Threat Detection" desc="Use AI heuristics to catch novel trackers">
+        <Toggle on={s.aiRiskScoringEnabled} onChange={v => update('aiRiskScoringEnabled', v)} accent="ai" />
       </Row>
     </div>
   )
@@ -191,7 +230,6 @@ function AppearanceSection({ s, update }: { s: KitsuneSettings; update: U }) {
   return (
     <div className={styles.section}>
       <h2 className={styles.sectionTitle}>Appearance</h2>
-
       <Row label="Theme" desc="Color scheme for the browser chrome">
         <Select
           value={s.theme}
@@ -206,10 +244,7 @@ function AppearanceSection({ s, update }: { s: KitsuneSettings; update: U }) {
       <Row label="Sidebar Position" desc="Which side the tab sidebar appears on">
         <Select
           value={s.sidebarPosition}
-          options={[
-            { value: 'left',  label: 'Left' },
-            { value: 'right', label: 'Right' },
-          ]}
+          options={[{ value: 'left', label: 'Left' }, { value: 'right', label: 'Right' }]}
           onChange={v => update('sidebarPosition', v as any)}
         />
       </Row>
@@ -221,14 +256,12 @@ function HotkeysSection({ s }: { s: KitsuneSettings }) {
   return (
     <div className={styles.section}>
       <h2 className={styles.sectionTitle}>Hotkeys</h2>
-      <p className={styles.sectionDesc}>All keyboard shortcuts. Full mouse-free operation supported.</p>
+      <p className={styles.sectionDesc}>Full keyboard operation — no mouse needed.</p>
       <div className={styles.hotkeyList}>
         {Object.entries(s.hotkeys).map(([key, action]) => (
           <div key={key} className={styles.hotkeyRow}>
             <span className={styles.hotkeyAction}>{String(action).replace(/:/g, ' › ')}</span>
-            <kbd className={styles.hotkeyKbd}>
-              {key.replace('cmd', '⌘').replace('shift', '⇧').replace('ctrl', '⌃')}
-            </kbd>
+            <kbd className={styles.hotkeyKbd}>{key.replace('ctrl', '⌃').replace('shift', '⇧')}</kbd>
           </div>
         ))}
       </div>
@@ -255,14 +288,14 @@ function AboutSection() {
         </div>
       </div>
       <p className={styles.aboutDesc}>
-        An AI-native browser built on Electron. Designed to be fast, private, and intelligent
-        — helping you research, focus, and build without friction.
+        An AI-native browser built on Electron. Fast, private, and intelligent.
+        AI powered by HackClub (free). Privacy by default.
       </p>
     </div>
   )
 }
 
-// ── Shared controls ───────────────────────────────────────────────
+// ── Shared controls ────────────────────────────────────────────────
 
 function Row({ label, desc, children }: { label: string; desc: string; children: React.ReactNode }) {
   return (
@@ -276,11 +309,12 @@ function Row({ label, desc, children }: { label: string; desc: string; children:
   )
 }
 
-function Toggle({ on, onChange, accent = 'fox' }: { on: boolean; onChange: (v: boolean) => void; accent?: string }) {
+function Toggle({ on, onChange, accent = 'fox' }: {
+  on: boolean; onChange: (v: boolean) => void; accent?: string
+}) {
   return (
     <button
-      role="switch"
-      aria-checked={on}
+      role="switch" aria-checked={on}
       className={`${styles.toggle} ${on ? (accent === 'ai' ? styles.toggleAI : styles.toggleOn) : styles.toggleOff}`}
       onClick={() => onChange(!on)}
     />
@@ -288,9 +322,7 @@ function Toggle({ on, onChange, accent = 'fox' }: { on: boolean; onChange: (v: b
 }
 
 function Select({ value, options, onChange }: {
-  value: string
-  options: Array<{ value: string; label: string }>
-  onChange: (v: string) => void
+  value: string; options: Array<{ value: string; label: string }>; onChange: (v: string) => void
 }) {
   return (
     <select className={styles.select} value={value} onChange={e => onChange(e.target.value)}>
