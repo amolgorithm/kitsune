@@ -17,6 +17,8 @@ export const TabIPC = {
   wake:            (id: string) => ipc.invoke<void>('tab:wake', id),
   list:            (workspaceId?: string) => ipc.invoke<KitsuneTab[]>('tab:list', workspaceId),
   setAIPanelWidth: (w: number) => ipc.invoke<void>('tab:set-ai-panel-width', w),
+  setSidebarWidth: (w: number) => ipc.invoke<number>('tab:set-sidebar-width' as any, w),
+  getSidebarWidth: ()          => ipc.invoke<number>('tab:get-sidebar-width' as any),
   goBack:          (id: string) => ipc.invoke<void>('tab:go-back', id),
   goForward:       (id: string) => ipc.invoke<void>('tab:go-forward', id),
   reload:          (id: string) => ipc.invoke<void>('tab:reload', id),
@@ -87,6 +89,8 @@ export const Push = {
     ipc.on('groups:update', fn as any),
   onCommandUI: (fn: (action: { action: string; [k: string]: unknown }) => void) =>
     ipc.on('command:ui' as any, fn as any),
+  onSidebarWidthUpdate: (fn: (w: number) => void) =>
+    ipc.on('sidebar:width-update' as any, fn as any),
 }
 
 export { CommandIPC } from './commandIpc'

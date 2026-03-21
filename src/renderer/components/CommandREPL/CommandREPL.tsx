@@ -15,17 +15,10 @@ interface REPLEntry {
 
 const MAX_HISTORY = 200
 
-// ─── Normalise space-notation → dot-notation ──────────────────────
-// "macro run foo"        → "macro.run foo"
-// "tab create url=x"     → "tab.create url=x"
-// "workspace program x"  → "workspace.program x"
-// "tab.create url=x"     → unchanged (already dot-notation)
 function normalise(cmd: string): string {
   const parts = cmd.trim().split(' ')
   const first = parts[0] ?? ''
-  // Already dot-notation — pass through
   if (first.includes('.')) return cmd
-  // If second token exists and looks like a sub-command (no = no :// no leading digit)
   const sub = parts[1] ?? ''
   const isSubCmd = sub.length > 0 && !sub.includes('=') && !sub.includes('://') && !/^\d/.test(sub) && !sub.startsWith(':')
   if (isSubCmd) {
@@ -34,25 +27,128 @@ function normalise(cmd: string): string {
   return cmd
 }
 
-export function CommandREPL() {
-  const toggleREPL  = useBrowserStore(s => s.toggleREPL)
-  const replOpen    = useBrowserStore(s => s.replOpen)
+function formatResult(result: unknown): string {
+  if (result === undefined || result === null) return '(null)'
+  if (typeof result === 'string') return result
+  if (typeof result === 'number' || typeof result === 'boolean') return String(result)
+  try { return JSON.stringify(result, null, 2) } catch { return String(result) }
+}
 
-  const [input, setInput]               = useState('')
-  const [entries, setEntries]           = useState<REPLEntry[]>([])
-  const [histIdx, setHistIdx]           = useState(-1)
-  const [inputHistory, setInputHistory] = useState<string[]>([])
-  const [suggestions, setSuggestions]   = useState<CommandCatalogEntry[]>([])
-  const [suggIdx, setSuggIdx]           = useState(-1)
-  const [catalog, setCatalog]           = useState<CommandCatalogEntry[]>([])
-  const [aliases, setAliases]           = useState<Array<{ short: string; expanded: string }>>([])
-  const [chainMode, setChainMode]       = useState(false)
+function formatTime(ts: number): string {
+  const d = new Date(ts)
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`
+}
+
+const KITSUNE_ASCII = `  ╔═╗  ╦╔═╦╔╦╗╔═╗╦ ╦╔╗╔╔═╗
+  ╠╩╗  ║╠╩╗ ║ ╚═╗║ ║║║║║╣ 
+  ╚═╝  ╩╩ ╩ ╩ ╚═╝╚═╝╝╚╝╚═╝`
+
+const HELP_TEXT = `Kitsune Command REPL
+
+META
+  help [category]          This help
+  clear                    Clear output
+  aliases                  List all aliases
+  macros                   List all macros
+  alias :short <cmd>       Create alias  e.g. alias :dv macro.run dev-session
+  unalias :short           Remove alias
+  chain / :run / :cancel   Multi-step chain mode
+  :q / exit                Close REPL
+
+MACROS
+  macro.run <name>         Run a macro by name or alias
+  macro.list               List all macros
+
+COMMON COMMANDS
+  tab.create url=<url>
+  tab.openMany urls=a.com,b.com delay=300
+  tab.closeMatching pattern=<regex>
+  tab.hibernateAll
+  tab.focusMatching pattern=github
+  workspace.program <name>
+  lens.set research
+  ai.summarize
+  ai.chat message="..."
+  memory.report
+  system.volume.set 60
+  js.eval code="document.title"
+  settings.theme midnight
+
+BUILT-IN ALIASES
+  :nt  new tab    :ct  close tab    :hi  hibernate all
+  :ai  AI panel   :rw  research workspace`
+
+// ─── Main component ────────────────────────────────────────────────
+
+export function CommandREPL() {
+  const toggleREPL = useBrowserStore(s => s.toggleREPL)
+  const replOpen   = useBrowserStore(s => s.replOpen)
+
+  const [input, setInput]                 = useState('')
+  const [entries, setEntries]             = useState<REPLEntry[]>([])
+  const [histIdx, setHistIdx]             = useState(-1)
+  const [inputHistory, setInputHistory]   = useState<string[]>([])
+  const [suggestions, setSuggestions]     = useState<CommandCatalogEntry[]>([])
+  const [suggIdx, setSuggIdx]             = useState(-1)
+  const [catalog, setCatalog]             = useState<CommandCatalogEntry[]>([])
+  const [aliases, setAliases]             = useState<Array<{ short: string; expanded: string }>>([])
+  const [chainMode, setChainMode]         = useState(false)
   const [chainCommands, setChainCommands] = useState<string[]>([])
-  const [macros, setMacros]             = useState<Array<{ id: string; name: string; alias?: string; description: string; steps: any[]; runCount: number }>>([])
-  const [sidebarTab, setSidebarTab]     = useState<'commands' | 'macros' | 'aliases' | 'history'>('commands')
+  const [macros, setMacros]               = useState<Array<{ id: string; name: string; alias?: string; description: string; steps: unknown[]; runCount: number }>>([])
+  const [sidebarTab, setSidebarTab]       = useState<'commands' | 'macros' | 'aliases' | 'history'>('commands')
+
+  // ── Resize state ────────────────────────────────────────────────
+  const [replHeight,      setReplHeight]      = useState(() => Math.round(window.innerHeight * 0.72))
+  const [sidebarWidth,    setSidebarWidth]    = useState(260)
+  const [draggingRepl,    setDraggingRepl]    = useState(false)
+  const [draggingSidebar, setDraggingSidebar] = useState(false)
+  const replDragStart    = useRef<{ y: number; h: number } | null>(null)
+  const sidebarDragStart = useRef<{ x: number; w: number } | null>(null)
 
   const inputRef  = useRef<HTMLInputElement>(null)
   const outputRef = useRef<HTMLDivElement>(null)
+
+  // ── REPL vertical drag ───────────────────────────────────────────
+  const onReplMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    replDragStart.current = { y: e.clientY, h: replHeight }
+    setDraggingRepl(true)
+    const onMove = (ev: MouseEvent) => {
+      if (!replDragStart.current) return
+      const delta = replDragStart.current.y - ev.clientY
+      const next  = Math.max(200, Math.min(window.innerHeight * 0.95, replDragStart.current.h + delta))
+      setReplHeight(Math.round(next))
+    }
+    const onUp = () => {
+      setDraggingRepl(false)
+      replDragStart.current = null
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+  }, [replHeight])
+
+  // ── Sidebar horizontal drag ──────────────────────────────────────
+  const onSidebarMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    sidebarDragStart.current = { x: e.clientX, w: sidebarWidth }
+    setDraggingSidebar(true)
+    const onMove = (ev: MouseEvent) => {
+      if (!sidebarDragStart.current) return
+      const delta = ev.clientX - sidebarDragStart.current.x
+      const next  = Math.max(140, Math.min(480, sidebarDragStart.current.w + delta))
+      setSidebarWidth(Math.round(next))
+    }
+    const onUp = () => {
+      setDraggingSidebar(false)
+      sidebarDragStart.current = null
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+  }, [sidebarWidth])
 
   useEffect(() => {
     if (!replOpen) return
@@ -76,7 +172,7 @@ export function CommandREPL() {
     setEntries(prev => [...prev.slice(-500), { ...e, id: crypto.randomUUID(), timestamp: Date.now() }])
   }, [])
 
-  // ── Autocomplete ──────────────────────────────────────────────────
+  // ── Autocomplete ─────────────────────────────────────────────────
   const updateSuggestions = useCallback((val: string) => {
     if (!val.trim()) { setSuggestions([]); return }
     const q = val.toLowerCase()
@@ -105,19 +201,19 @@ export function CommandREPL() {
     updateSuggestions(e.target.value)
   }, [updateSuggestions])
 
-  // ── Core dispatcher — called after meta-commands are filtered ─────
+  // ── Core dispatcher ──────────────────────────────────────────────
   const executeCommand = useCallback(async (raw: string) => {
     let cmd = raw.trim()
     const firstWord = cmd.split(' ')[0] ?? ''
 
-    // 1. Check stored aliases (e.g. :dv → macro.run dev-session)
+    // 1. Stored aliases
     const storedAlias = aliases.find(a => a.short === firstWord)
     if (storedAlias) {
       const rest = cmd.slice(firstWord.length).trim()
       cmd = rest ? `${storedAlias.expanded} ${rest}` : storedAlias.expanded
       addEntry({ type: 'info', content: `  ↳ ${cmd}` })
     } else {
-      // 2. Check macro.alias field (e.g. :morning, :save, :research built into macro object)
+      // 2. Macro alias field (e.g. :morning, :save baked into macro object)
       const macroByAlias = macros.find(m => m.alias === firstWord)
       if (macroByAlias) {
         addEntry({ type: 'info', content: `Running macro: ${macroByAlias.name}…` })
@@ -130,7 +226,7 @@ export function CommandREPL() {
         return
       }
 
-      // 3. Check macro by full name directly (e.g. morning-session)
+      // 3. Macro by full name
       const macroByName = macros.find(m => m.name === firstWord)
       if (macroByName) {
         addEntry({ type: 'info', content: `Running macro: ${macroByName.name}…` })
@@ -191,7 +287,7 @@ export function CommandREPL() {
     }
   }, [aliases, macros, addEntry])
 
-  // ── Submit ────────────────────────────────────────────────────────
+  // ── Submit ───────────────────────────────────────────────────────
   const submit = useCallback(async (rawInput?: string) => {
     const cmd = (rawInput ?? input).trim()
     if (!cmd) return
@@ -292,7 +388,7 @@ export function CommandREPL() {
     await executeCommand(cmd)
   }, [input, chainMode, chainCommands, catalog, aliases, toggleREPL, addEntry, executeCommand])
 
-  // ── Keyboard ──────────────────────────────────────────────────────
+  // ── Keyboard ─────────────────────────────────────────────────────
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Escape') { toggleREPL(); return }
 
@@ -338,9 +434,27 @@ export function CommandREPL() {
 
   if (!replOpen) return null
 
+  const overlayClass = [
+    styles.overlay,
+    draggingRepl    ? styles.draggingGlobal  : '',
+    draggingSidebar ? styles.draggingGlobalH : '',
+  ].filter(Boolean).join(' ')
+
   return (
-    <div className={styles.overlay} onClick={(e) => { if (e.target === e.currentTarget) toggleREPL() }}>
-      <div className={`${styles.repl} k-scale-in`}>
+    <div
+      className={overlayClass}
+      onClick={(e) => { if (e.target === e.currentTarget && !draggingRepl && !draggingSidebar) toggleREPL() }}
+    >
+      <div className={`${styles.repl} k-scale-in`} style={{ height: replHeight }}>
+
+        {/* REPL vertical resize handle — drag up/down to resize */}
+        <div
+          className={`${styles.replResizeHandle} ${draggingRepl ? styles.dragging : ''}`}
+          onMouseDown={onReplMouseDown}
+          title="Drag to resize"
+        />
+
+        {/* Header */}
         <div className={styles.header}>
           <div className={styles.headerLeft}>
             <div className={styles.termIcon}>⌘_</div>
@@ -359,33 +473,47 @@ export function CommandREPL() {
           </div>
         </div>
 
+        {/* Body */}
         <div className={styles.body}>
-          <div className={styles.sidebar}>
-            <div className={styles.sidebarTabs}>
-              {(['commands', 'macros', 'aliases', 'history'] as const).map(t => (
-                <button key={t}
-                  className={`${styles.sidebarTab} ${sidebarTab === t ? styles.sidebarTabActive : ''}`}
-                  onClick={() => setSidebarTab(t)}>
-                  {t}
-                </button>
-              ))}
+
+          {/* Sidebar with horizontal resize handle */}
+          <div className={styles.sidebarWrap} style={{ width: sidebarWidth }}>
+            <div className={styles.sidebar}>
+              <div className={styles.sidebarTabs}>
+                {(['commands', 'macros', 'aliases', 'history'] as const).map(t => (
+                  <button
+                    key={t}
+                    className={`${styles.sidebarTab} ${sidebarTab === t ? styles.sidebarTabActive : ''}`}
+                    onClick={() => setSidebarTab(t)}
+                  >
+                    {t}
+                  </button>
+                ))}
+              </div>
+              <div className={styles.sidebarContent}>
+                {sidebarTab === 'commands' && (
+                  <CommandsList catalog={catalog} onInsert={(cmd) => { setInput(cmd + ' '); inputRef.current?.focus() }} />
+                )}
+                {sidebarTab === 'macros' && (
+                  <MacrosList macros={macros} onRun={(name) => submit(`macro.run ${name}`)} />
+                )}
+                {sidebarTab === 'aliases' && (
+                  <AliasesList aliases={aliases} onInsert={(s) => { setInput(s); inputRef.current?.focus() }} />
+                )}
+                {sidebarTab === 'history' && (
+                  <HistoryList entries={entries} onRerun={(cmd) => { setInput(cmd); inputRef.current?.focus() }} />
+                )}
+              </div>
             </div>
-            <div className={styles.sidebarContent}>
-              {sidebarTab === 'commands' && (
-                <CommandsList catalog={catalog} onInsert={(cmd) => { setInput(cmd + ' '); inputRef.current?.focus() }} />
-              )}
-              {sidebarTab === 'macros' && (
-                <MacrosList macros={macros} onRun={(name) => submit(`macro.run ${name}`)} />
-              )}
-              {sidebarTab === 'aliases' && (
-                <AliasesList aliases={aliases} onInsert={(s) => { setInput(s); inputRef.current?.focus() }} />
-              )}
-              {sidebarTab === 'history' && (
-                <HistoryList entries={entries} onRerun={(cmd) => { setInput(cmd); inputRef.current?.focus() }} />
-              )}
-            </div>
+            {/* Sidebar horizontal resize handle — drag left/right */}
+            <div
+              className={`${styles.sidebarResizeHandle} ${draggingSidebar ? styles.dragging : ''}`}
+              onMouseDown={onSidebarMouseDown}
+              title="Drag to resize sidebar"
+            />
           </div>
 
+          {/* Terminal */}
           <div className={styles.terminal}>
             <div ref={outputRef} className={styles.output}>
               {entries.length === 0 && (
@@ -396,7 +524,9 @@ export function CommandREPL() {
                     <br />
                     Run a macro: <kbd>macro.run my-macro</kbd> · or its alias: <kbd>:morning</kbd>
                     <br />
-                    Create alias: <kbd>alias :dv macro.run dev-session</kbd>
+                    Create alias: <kbd>alias :xx macro.run my-macro</kbd>
+                    <br />
+                    Drag top edge to resize · drag sidebar edge to resize sidebar
                   </div>
                 </div>
               )}
@@ -405,6 +535,7 @@ export function CommandREPL() {
               ))}
             </div>
 
+            {/* Input */}
             <div className={styles.inputRow}>
               <span className={styles.prompt}>{chainMode ? '⋮' : '›'}</span>
               <div className={styles.inputWrap}>
@@ -444,6 +575,7 @@ export function CommandREPL() {
               <button className={styles.submitBtn} onClick={() => submit()} title="Execute (Enter)">↵</button>
             </div>
           </div>
+
         </div>
       </div>
     </div>
@@ -453,29 +585,50 @@ export function CommandREPL() {
 // ─── Sub-components ────────────────────────────────────────────────
 
 function OutputEntry({ entry }: { entry: REPLEntry }) {
-  const cls = { input: styles.entryInput, output: styles.entryOutput, error: styles.entryError, info: styles.entryInfo, chain: styles.entryChain }[entry.type]
+  const cls = {
+    input:  styles.entryInput,
+    output: styles.entryOutput,
+    error:  styles.entryError,
+    info:   styles.entryInfo,
+    chain:  styles.entryChain,
+  }[entry.type]
+
   return (
-    <div className={`${styles.entry} ${cls}`}>
+    <div className={`${styles.entry} ${cls ?? ''}`}>
       <span className={styles.entryTime}>{formatTime(entry.timestamp)}</span>
       <pre className={styles.entryContent}>{entry.content}</pre>
     </div>
   )
 }
 
-function CommandsList({ catalog, onInsert }: { catalog: CommandCatalogEntry[]; onInsert: (cmd: string) => void }) {
+function CommandsList({ catalog, onInsert }: {
+  catalog: CommandCatalogEntry[]
+  onInsert: (cmd: string) => void
+}) {
   const [filter, setFilter] = useState('')
-  const [cat, setCat] = useState('all')
+  const [cat, setCat]       = useState('all')
   const categories = useMemo(() => ['all', ...new Set(catalog.map(c => c.category))], [catalog])
-  const filtered = catalog.filter(c =>
+  const filtered   = catalog.filter(c =>
     (cat === 'all' || c.category === cat) &&
     (!filter || c.command.includes(filter) || c.desc.toLowerCase().includes(filter.toLowerCase()))
   )
   return (
     <div className={styles.sidebarList}>
-      <input className={styles.sidebarFilter} placeholder="Filter commands…" value={filter} onChange={e => setFilter(e.target.value)} />
+      <input
+        className={styles.sidebarFilter}
+        placeholder="Filter commands…"
+        value={filter}
+        onChange={e => setFilter(e.target.value)}
+      />
       <div className={styles.catTabs}>
         {categories.map(c => (
-          <button key={c} className={`${styles.catTab} ${cat === c ? styles.catTabActive : ''}`} onClick={() => setCat(c)}>{c}</button>
+          <button
+            key={c}
+            className={`${styles.catTab} ${cat === c ? styles.catTabActive : ''}`}
+            onClick={() => setCat(c)}
+          >
+            {c}
+          </button>
         ))}
       </div>
       <div className={styles.cmdList}>
@@ -490,29 +643,39 @@ function CommandsList({ catalog, onInsert }: { catalog: CommandCatalogEntry[]; o
   )
 }
 
-function MacrosList({ macros, onRun }: { macros: any[]; onRun: (name: string) => void }) {
+function MacrosList({ macros, onRun }: {
+  macros: Array<{ id: string; name: string; alias?: string; description: string; steps: unknown[]; runCount: number }>
+  onRun: (name: string) => void
+}) {
   return (
     <div className={styles.sidebarList}>
-      {macros.length === 0 && <div className={styles.emptyState}>No macros yet.<br />Create one in Settings → Macros.</div>}
-      {macros.map((m: any) => (
+      {macros.length === 0 && (
+        <div className={styles.emptyState}>No macros yet.<br />Create one in Settings → Macros.</div>
+      )}
+      {macros.map(m => (
         <button key={m.id} className={styles.macroItem} onClick={() => onRun(m.name)}>
           <div className={styles.macroName}>
             {m.alias && <kbd className={styles.macroAlias}>{m.alias}</kbd>}
             {m.name}
           </div>
           <div className={styles.macroDesc}>{m.description}</div>
-          <div className={styles.macroMeta}>{m.steps?.length ?? 0} steps · run {m.runCount ?? 0}×</div>
+          <div className={styles.macroMeta}>{m.steps.length} steps · run {m.runCount}×</div>
         </button>
       ))}
     </div>
   )
 }
 
-function AliasesList({ aliases, onInsert }: { aliases: any[]; onInsert: (s: string) => void }) {
+function AliasesList({ aliases, onInsert }: {
+  aliases: Array<{ short: string; expanded: string }>
+  onInsert: (s: string) => void
+}) {
   return (
     <div className={styles.sidebarList}>
-      {aliases.length === 0 && <div className={styles.emptyState}>No aliases yet.<br />Type: <kbd>alias :dv macro.run dev-session</kbd></div>}
-      {aliases.map((a: any) => (
+      {aliases.length === 0 && (
+        <div className={styles.emptyState}>No aliases yet.<br />Type: <code>alias :xx macro.run name</code></div>
+      )}
+      {aliases.map(a => (
         <button key={a.short} className={styles.aliasItem} onClick={() => onInsert(a.short)}>
           <kbd className={styles.aliasShort}>{a.short}</kbd>
           <span className={styles.aliasExpanded}>{a.expanded}</span>
@@ -522,7 +685,10 @@ function AliasesList({ aliases, onInsert }: { aliases: any[]; onInsert: (s: stri
   )
 }
 
-function HistoryList({ entries, onRerun }: { entries: REPLEntry[]; onRerun: (cmd: string) => void }) {
+function HistoryList({ entries, onRerun }: {
+  entries: REPLEntry[]
+  onRerun: (cmd: string) => void
+}) {
   const inputs = entries.filter(e => e.type === 'input').reverse()
   return (
     <div className={styles.sidebarList}>
@@ -536,54 +702,3 @@ function HistoryList({ entries, onRerun }: { entries: REPLEntry[]; onRerun: (cmd
     </div>
   )
 }
-
-function formatResult(result: unknown): string {
-  if (result === undefined || result === null) return '(null)'
-  if (typeof result === 'string') return result
-  if (typeof result === 'number' || typeof result === 'boolean') return String(result)
-  try { return JSON.stringify(result, null, 2) } catch { return String(result) }
-}
-
-function formatTime(ts: number): string {
-  const d = new Date(ts)
-  return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`
-}
-
-const KITSUNE_ASCII = `  ╔═╗  ╦╔═╦╔╦╗╔═╗╦ ╦╔╗╔╔═╗
-  ╠╩╗  ║╠╩╗ ║ ╚═╗║ ║║║║║╣ 
-  ╚═╝  ╩╩ ╩ ╩ ╚═╝╚═╝╝╚╝╚═╝`
-
-const HELP_TEXT = `Kitsune Command REPL
-
-META
-  help [category]          This help
-  clear                    Clear output
-  aliases                  List all aliases
-  macros                   List all macros
-  alias :short <cmd>       Create alias  e.g. alias :dv macro.run dev-session
-  unalias :short           Remove alias
-  chain / :run / :cancel   Multi-step chain mode
-  :q / exit                Close REPL
-
-MACROS
-  macro.run <name>         Run a macro by name
-  macro.list               List all macros
-
-COMMON COMMANDS
-  tab.create url=<url>
-  tab.openMany urls=a.com,b.com delay=300
-  tab.closeMatching pattern=<regex>
-  tab.hibernateAll
-  tab.focusMatching pattern=github
-  workspace.program <name>
-  lens.set research
-  ai.summarize
-  ai.chat message="..."
-  memory.report
-  system.volume.set 60
-  js.eval code="document.title"
-  settings.theme midnight
-
-BUILT-IN ALIASES
-  :nt  new tab    :ct  close tab    :hi  hibernate all
-  :ai  AI panel   :rw  research workspace`

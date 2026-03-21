@@ -20,8 +20,9 @@ interface PaneRegion {
 }
 
 const CHROME_TOP = 32 + 48 + 36   // titlebar(32) + navbar(48) + lensbar(36)
-const SIDEBAR_W  = 240
+let   SIDEBAR_W  = 240             // mutable — updated via setSidebarWidth()
 const BOTTOM_H   = 24 + 28         // statusbar(24) + hotkeybar(28)
+const MIN_SIDEBAR_W = 52           // collapsed / icon-only mode
 
 export class TabManager {
   public views       = new Map<string, BrowserView>()
@@ -36,9 +37,27 @@ export class TabManager {
     private readonly settings: SettingsStore,
     private readonly window: BrowserWindow,
   ) {
+    // Load persisted sidebar width
+    const persistedW = settings.getRaw('sidebarWidth') as number | null
+    if (persistedW && persistedW >= MIN_SIDEBAR_W) {
+      SIDEBAR_W = persistedW
+    }
+
     window.on('resize',     () => this.repositionAll())
     window.on('maximize',   () => this.repositionAll())
     window.on('unmaximize', () => this.repositionAll())
+  }
+
+  // ─── Sidebar width (called from IPC) ────────────────────────────
+
+  setSidebarWidth(w: number): void {
+    SIDEBAR_W = Math.max(MIN_SIDEBAR_W, Math.min(400, w))
+    this.settings.setRaw('sidebarWidth', SIDEBAR_W)
+    this.repositionAll()
+  }
+
+  getSidebarWidth(): number {
+    return SIDEBAR_W
   }
 
   // ─── Tab lifecycle ──────────────────────────────────────────────
@@ -87,7 +106,6 @@ export class TabManager {
     tab.lastAccessedAt = Date.now()
 
     if (this.currentPanes.length > 0) {
-      // In split mode — reapply layout with updated active tab
       this.repositionAll()
     } else {
       const view = this.views.get(id)
@@ -204,7 +222,6 @@ export class TabManager {
 
   hideActiveView(): void {
     this.viewHidden = true
-    // Remove all visible BrowserViews
     for (const view of this.views.values()) {
       try { this.window.removeBrowserView(view) } catch { /* ignore */ }
     }
@@ -227,7 +244,6 @@ export class TabManager {
   applyLayout(panes: PaneRegion[]): void {
     if (this.viewHidden) return
 
-    // Reset all views from window
     for (const view of this.views.values()) {
       try { this.window.removeBrowserView(view) } catch { /* ignore */ }
     }
@@ -235,7 +251,6 @@ export class TabManager {
     this.currentPanes = panes
 
     if (panes.length <= 1) {
-      // Single pane — use active tab
       this.currentPanes = []
       const view = this.activeTabId ? this.views.get(this.activeTabId) : null
       if (view) {
@@ -245,7 +260,6 @@ export class TabManager {
       return
     }
 
-    // Multi-pane — calculate bounds for each pane
     const [w, h] = this.window.getContentSize()
     const contentW = w - SIDEBAR_W - this.aiPanelWidth
     const contentH = h - CHROME_TOP - BOTTOM_H
@@ -254,12 +268,11 @@ export class TabManager {
     const paneWidth   = Math.floor(contentW / paneCount)
 
     panes.forEach((pane, i) => {
-      if (pane.isAIPane) return  // AI pane is React, not BrowserView
+      if (pane.isAIPane) return
 
       const tabId = pane.tabId ?? this.activeTabId
       if (!tabId) return
 
-      // Wake the tab if hibernated
       const tab = this.tabs.get(tabId)
       if (tab?.hibernated) {
         this.wakeTab(tabId).then(() => {

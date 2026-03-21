@@ -18,6 +18,15 @@ export function registerTabIPC(
   ipcMain.handle('tab:set-ai-panel-width', async (_e, width: number) =>
     tabManager.setAIPanelWidth(width))
 
+  // Sidebar resize — updates BrowserView bounds immediately
+  ipcMain.handle('tab:set-sidebar-width', async (_e, width: number) => {
+    tabManager.setSidebarWidth(width)
+    // Push the canonical width back so renderer CSS stays in sync
+    win.webContents.send('sidebar:width-update', tabManager.getSidebarWidth())
+    return tabManager.getSidebarWidth()
+  })
+  ipcMain.handle('tab:get-sidebar-width', async () => tabManager.getSidebarWidth())
+
   // Navigation controls
   ipcMain.handle('tab:go-back',    (_e, id: string) => tabManager.goBack(id))
   ipcMain.handle('tab:go-forward', (_e, id: string) => tabManager.goForward(id))

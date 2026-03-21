@@ -5,14 +5,14 @@
   background: rgba(0,0,0,0.88);
   backdrop-filter: blur(4px);
   display: flex; align-items: flex-end; justify-content: center;
-  padding: 0 0 0 0;
   animation: k-fade-in var(--k-duration-fast) var(--k-ease);
 }
 
 .repl {
   width: 100%;
-  height: 72vh;
-  min-height: 420px;
+  /* height is set inline via state */
+  min-height: 200px;
+  max-height: 95vh;
   background: #0a0c10;
   border-top: 1px solid rgba(255,107,53,0.25);
   display: flex;
@@ -20,12 +20,43 @@
   font-family: var(--k-font-mono);
   animation: replSlideUp 0.2s var(--k-ease);
   overflow: hidden;
+  position: relative;
 }
 
 @keyframes replSlideUp {
   from { transform: translateY(100%); opacity: 0; }
   to   { transform: translateY(0);    opacity: 1; }
 }
+
+/* ── REPL vertical resize handle (top edge) ──────────────────────── */
+.replResizeHandle {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 5px;
+  cursor: ns-resize;
+  z-index: 10;
+  background: transparent;
+  transition: background 0.15s;
+}
+.replResizeHandle:hover,
+.replResizeHandle.dragging {
+  background: rgba(255,107,53,0.35);
+}
+/* Subtle grab dots in the centre */
+.replResizeHandle::after {
+  content: '· · · · ·';
+  position: absolute;
+  left: 50%; top: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 8px;
+  letter-spacing: 3px;
+  color: rgba(255,107,53,0.4);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.replResizeHandle:hover::after,
+.replResizeHandle.dragging::after { opacity: 1; }
 
 /* ── Header ─────────────────────────────────────────────────────── */
 .header {
@@ -34,6 +65,7 @@
   background: #0d0f14;
   border-bottom: 1px solid rgba(255,255,255,0.06);
   flex-shrink: 0;
+  margin-top: 5px; /* space for resize handle */
 }
 .headerLeft { display: flex; align-items: center; gap: 10px; }
 .termIcon {
@@ -61,11 +93,53 @@
 }
 
 /* ── Sidebar ─────────────────────────────────────────────────────── */
+.sidebarWrap {
+  /* width set inline via state */
+  min-width: 140px;
+  max-width: 480px;
+  display: flex;
+  flex-shrink: 0;
+  position: relative;
+}
+
 .sidebar {
-  width: 260px; border-right: 1px solid rgba(255,255,255,0.05);
-  display: flex; flex-direction: column; overflow: hidden; flex-shrink: 0;
+  width: 100%;
+  border-right: none; /* handled by resize handle */
+  display: flex; flex-direction: column; overflow: hidden;
   background: #090b0e;
 }
+
+/* ── Sidebar horizontal resize handle (right edge) ───────────────── */
+.sidebarResizeHandle {
+  position: absolute;
+  top: 0; right: 0; bottom: 0;
+  width: 5px;
+  cursor: ew-resize;
+  z-index: 10;
+  background: transparent;
+  transition: background 0.15s;
+  flex-shrink: 0;
+}
+.sidebarResizeHandle:hover,
+.sidebarResizeHandle.dragging {
+  background: rgba(255,107,53,0.35);
+}
+.sidebarResizeHandle::after {
+  content: '';
+  position: absolute;
+  left: 2px; top: 50%; bottom: 50%;
+  width: 1px;
+  background: rgba(255,107,53,0.5);
+  transform: translateY(-50%);
+  height: 32px;
+  margin-top: -16px;
+  border-radius: 1px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.sidebarResizeHandle:hover::after,
+.sidebarResizeHandle.dragging::after { opacity: 1; }
+
 .sidebarTabs {
   display: flex; border-bottom: 1px solid rgba(255,255,255,0.06);
   flex-shrink: 0;
@@ -139,6 +213,7 @@
 /* ── Terminal ────────────────────────────────────────────────────── */
 .terminal {
   flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0;
+  border-left: 1px solid rgba(255,255,255,0.05);
 }
 
 .output {
@@ -247,3 +322,13 @@
   display: flex; align-items: center; justify-content: center;
 }
 .submitBtn:hover { background: rgba(255,107,53,0.3); }
+
+/* Prevent text selection while dragging */
+.draggingGlobal {
+  user-select: none;
+  cursor: ns-resize;
+}
+.draggingGlobalH {
+  user-select: none;
+  cursor: ew-resize;
+}

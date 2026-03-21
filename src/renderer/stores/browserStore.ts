@@ -19,6 +19,15 @@ const BUILT_IN_LENSES: LensProfile[] = [
 
 interface NavState { canGoBack: boolean; canGoForward: boolean }
 
+// Debounce helper for IPC calls during drag
+let sidebarIpcTimer: ReturnType<typeof setTimeout> | null = null
+function debouncedSetSidebarWidth(w: number) {
+  if (sidebarIpcTimer) clearTimeout(sidebarIpcTimer)
+  sidebarIpcTimer = setTimeout(() => {
+    TabIPC.setSidebarWidth(w).catch(console.error)
+  }, 16) // ~1 frame debounce — fast enough, not flooding
+}
+
 interface BrowserState {
   tabs: KitsuneTab[]
   activeTabId: string | null
@@ -34,6 +43,7 @@ interface BrowserState {
   bookmarks: Bookmark[]
   readingMode: boolean
   sidebarHidden: boolean
+  sidebarWidth: number
 
   aiPanelOpen: boolean
   aiPanelTab: AIPanelTab
@@ -61,6 +71,9 @@ interface BrowserState {
   reload:            (id: string) => Promise<void>
   updateTabFromPush: (tab: KitsuneTab) => void
   removeTabFromPush: (id: string) => void
+
+  // Sidebar resize
+  setSidebarWidth: (w: number) => void
 
   // Bookmarks
   addBookmark:    (tab: KitsuneTab) => void
@@ -115,7 +128,7 @@ export const useBrowserStore = create<BrowserState>()(
     activeWorkspaceId: 'default', settings: DEFAULT_SETTINGS,
     layout: null, lenses: BUILT_IN_LENSES, activeLensId: LENS_IDS.DEFAULT,
     initError: null, navState: {}, bookmarks: [], readingMode: false,
-    sidebarHidden: false,
+    sidebarHidden: false, sidebarWidth: 240,
 
     aiPanelOpen: false, aiPanelTab: 'summary',
     aiSummaries: new Map(), chatMessages: [], chatLoading: false,
@@ -123,6 +136,15 @@ export const useBrowserStore = create<BrowserState>()(
     commandPaletteOpen: false, settingsOpen: false, cleaveOpen: false,
     fileSearchOpen: false, replOpen: false,
     urlBarFocused: false, urlBarValue: '',
+
+    // ── Sidebar resize ─────────────────────────────────────────
+    setSidebarWidth: (w) => {
+      // Update CSS custom property immediately for instant visual feedback
+      document.documentElement.style.setProperty('--k-sidebar-w', `${w}px`)
+      set(s => { s.sidebarWidth = w })
+      // Debounce the IPC call to avoid flooding during drag
+      debouncedSetSidebarWidth(w)
+    },
 
     // ── Tab actions ─────────────────────────────────────────────
     createTab: async (url) => {
@@ -331,13 +353,19 @@ export const useBrowserStore = create<BrowserState>()(
         return
       }
       try {
-        const [settings, workspaces, tabs, layout, groups] = await Promise.all([
+        const [settings, workspaces, tabs, layout, groups, persistedSidebarW] = await Promise.all([
           SettingsIPC.get(),
           WorkspaceIPC.list(),
           TabIPC.list(),
           CleaveIPC.getLayout(),
           WorkspaceIPC.listGroups(),
+          TabIPC.getSidebarWidth(),
         ])
+
+        // Apply persisted sidebar width to CSS immediately
+        const sw = persistedSidebarW ?? 240
+        document.documentElement.style.setProperty('--k-sidebar-w', `${sw}px`)
+
         set(s => {
           s.settings         = settings
           s.activeLensId     = settings.activeLensId ?? LENS_IDS.DEFAULT
@@ -347,6 +375,7 @@ export const useBrowserStore = create<BrowserState>()(
           s.activeTabId      = tabs.find(t => !t.hibernated)?.id ?? null
           s.layout           = layout
           s.activeWorkspaceId = workspaces[0]?.id ?? 'default'
+          s.sidebarWidth     = sw
         })
         get().applySettingsToDOM()
       } catch (e) {
@@ -373,6 +402,12 @@ export const useBrowserStore = create<BrowserState>()(
       }))
       Push.onLayoutUpdate(layout => set(s => { s.layout = layout }))
       Push.onGroupsUpdate(groups => get().setGroupsFromPush(groups))
+
+      // Main pushes canonical sidebar width (clamped) back after setSidebarWidth
+      Push.onSidebarWidthUpdate(w => {
+        document.documentElement.style.setProperty('--k-sidebar-w', `${w}px`)
+        set(s => { s.sidebarWidth = w })
+      })
 
       // Settings pushed from main when changed
       window.kitsune.on('settings:update' as any, (updated: unknown) => {
