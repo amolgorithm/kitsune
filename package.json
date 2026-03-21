@@ -40,6 +40,9 @@
     "directories": {
       "output": "release"
     },
+    "publish": {
+      "provider": "github"
+    },
     "files": [
       "dist/**/*",
       "dist-electron/**/*"
