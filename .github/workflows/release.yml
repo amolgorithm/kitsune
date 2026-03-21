@@ -50,5 +50,7 @@ jobs:
             release/*.AppImage
             release/*.deb
           prerelease: true
+          draft: false
+          make_latest: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
