@@ -85,7 +85,7 @@ export function Sidebar() {
           <KitsuneLogo />
         </div>
         <span className={styles.logoText}>Kitsune</span>
-        <span className={styles.version}>0.9.4</span>
+        <span className={styles.version}>0.10.0-beta</span>
       </div>
 
       {/* Search */}

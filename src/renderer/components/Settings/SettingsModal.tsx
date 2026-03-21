@@ -4,6 +4,7 @@ import { useBrowserStore } from '../../stores/browserStore'
 import { SettingsIPC } from '../../lib/ipc'
 import type { KitsuneSettings, AppearanceSettings, AccentPreset, BackgroundStyle, TextureStyle, AnimationStyle, ThemeBase } from '../../../shared/types'
 import { DEFAULT_APPEARANCE } from '../../../shared/types'
+import { MacroEditor } from '../MacroEditor/MacroEditor'
 import { IconMoon, IconSun, IconMonitor, IconSidebarLeft, IconSidebarRight, IconAnimNone, IconBubble, IconAurora, IconParticle, IconRipple, IconGrain, IconMesh, IconGradientLinear, IconDotGrid, IconLineGrid, IconNoise } from '../Icons'
 import {
   IconSparkle, IconTab, IconShield, IconPalette,
@@ -11,7 +12,6 @@ import {
 } from '../Icons'
 import styles from './SettingsModal.module.css'
 
-// Available models from HackClub / OpenRouter
 const AI_MODELS = [
   { value: 'google/gemini-2.5-flash',        label: 'Gemini 2.5 Flash (recommended)' },
   { value: 'google/gemini-3-flash-preview',  label: 'Gemini 3 Flash Preview' },
@@ -21,19 +21,21 @@ const AI_MODELS = [
   { value: 'moonshotai/kimi-k2-thinking',    label: 'Kimi K2 Thinking' },
 ]
 
-type Section = 'ai' | 'tabs' | 'privacy' | 'appearance' | 'hotkeys' | 'about'
+type Section = 'ai' | 'tabs' | 'privacy' | 'appearance' | 'macros' | 'hotkeys' | 'about'
 
 const NAV: Array<{ id: Section; label: string; icon: React.ReactNode }> = [
-  { id: 'ai',         label: 'AI & Intelligence', icon: <IconSparkle size={14} /> },
-  { id: 'tabs',       label: 'Tabs & Memory',      icon: <IconTab size={14} /> },
-  { id: 'privacy',    label: 'Privacy & Security', icon: <IconShield size={14} /> },
-  { id: 'appearance', label: 'Appearance',          icon: <IconPalette size={14} /> },
-  { id: 'hotkeys',    label: 'Hotkeys',             icon: <IconHotkey size={14} /> },
-  { id: 'about',      label: 'About',               icon: <IconInfo size={14} /> },
+  { id: 'ai',         label: 'AI & Intelligence',    icon: <IconSparkle size={14} /> },
+  { id: 'tabs',       label: 'Tabs & Memory',        icon: <IconTab size={14} /> },
+  { id: 'privacy',    label: 'Privacy & Security',   icon: <IconShield size={14} /> },
+  { id: 'appearance', label: 'Appearance',            icon: <IconPalette size={14} /> },
+  { id: 'macros',     label: 'Macros & Automation',  icon: <IconHotkey size={14} /> },
+  { id: 'hotkeys',    label: 'Hotkeys',               icon: <IconHotkey size={14} /> },
+  { id: 'about',      label: 'About',                 icon: <IconInfo size={14} /> },
 ]
 
 export function SettingsModal() {
   const closeSettings = useBrowserStore(s => s.closeSettings)
+  const toggleREPL    = useBrowserStore(s => s.toggleREPL)
   const [section, setSection]   = useState<Section>('ai')
   const [settings, setSettings] = useState<KitsuneSettings | null>(null)
   const [saved, setSaved]       = useState(false)
@@ -111,6 +113,7 @@ export function SettingsModal() {
           {section === 'tabs'       && <TabsSection       s={settings} update={update} />}
           {section === 'privacy'    && <PrivacySection    s={settings} update={update} />}
           {section === 'appearance' && <AppearanceSection s={settings} update={update} />}
+          {section === 'macros'     && <MacrosSection onOpenREPL={() => { closeSettings(); toggleREPL() }} />}
           {section === 'hotkeys'    && <HotkeysSection    s={settings} />}
           {section === 'about'      && <AboutSection />}
         </div>
@@ -258,13 +261,13 @@ function AppearanceSection({ s, update }: { s: KitsuneSettings; update: U }) {
   ]
 
   const BG_OPTIONS: Array<{ id: BackgroundStyle; label: string; icon: React.ReactNode }> = [
-    { id: 'plain',            label: 'Plain',          icon: <div style={{width:20,height:14,background:'var(--k-bg)',borderRadius:3,border:'1px solid var(--k-border)'}} /> },
-    { id: 'gradient-linear',  label: 'Linear',         icon: <IconGradientLinear size={16} /> },
-    { id: 'gradient-mesh',    label: 'Mesh',           icon: <IconMesh size={16} /> },
-    { id: 'gradient-accent',  label: 'Accent Glow',    icon: <IconMesh size={16} /> },
-    { id: 'dots',             label: 'Dots',           icon: <IconDotGrid size={16} /> },
-    { id: 'grid',             label: 'Grid',           icon: <IconLineGrid size={16} /> },
-    { id: 'noise',            label: 'Noise',          icon: <IconNoise size={16} /> },
+    { id: 'plain',            label: 'Plain',       icon: <div style={{width:20,height:14,background:'var(--k-bg)',borderRadius:3,border:'1px solid var(--k-border)'}} /> },
+    { id: 'gradient-linear',  label: 'Linear',      icon: <IconGradientLinear size={16} /> },
+    { id: 'gradient-mesh',    label: 'Mesh',        icon: <IconMesh size={16} /> },
+    { id: 'gradient-accent',  label: 'Accent Glow', icon: <IconMesh size={16} /> },
+    { id: 'dots',             label: 'Dots',        icon: <IconDotGrid size={16} /> },
+    { id: 'grid',             label: 'Grid',        icon: <IconLineGrid size={16} /> },
+    { id: 'noise',            label: 'Noise',       icon: <IconNoise size={16} /> },
   ]
 
   const TEXTURES: Array<{ id: TextureStyle; label: string; icon: React.ReactNode }> = [
@@ -275,21 +278,20 @@ function AppearanceSection({ s, update }: { s: KitsuneSettings; update: U }) {
   ]
 
   const ANIMS: Array<{ id: AnimationStyle; label: string; desc: string; icon: React.ReactNode }> = [
-    { id: 'none',      label: 'None',      desc: 'Static',                icon: <IconAnimNone size={16} /> },
-    { id: 'bubbles',   label: 'Bubbles',   desc: 'Rising glass orbs',     icon: <IconBubble   size={16} /> },
-    { id: 'aurora',    label: 'Aurora',    desc: 'Northern lights',       icon: <IconAurora   size={16} /> },
-    { id: 'particles', label: 'Particles', desc: 'Connected network',     icon: <IconParticle size={16} /> },
-    { id: 'ripple',    label: 'Ripple',    desc: 'Expanding rings',       icon: <IconRipple   size={16} /> },
-    { id: 'starfield', label: 'Warp',      desc: 'Hyperspace effect',     icon: <IconAurora   size={16} /> },
-    { id: 'lava',      label: 'Lava Lamp', desc: 'Morphing blobs',        icon: <IconBubble   size={16} /> },
+    { id: 'none',      label: 'None',      desc: 'Static',            icon: <IconAnimNone size={16} /> },
+    { id: 'bubbles',   label: 'Bubbles',   desc: 'Rising glass orbs', icon: <IconBubble   size={16} /> },
+    { id: 'aurora',    label: 'Aurora',    desc: 'Northern lights',   icon: <IconAurora   size={16} /> },
+    { id: 'particles', label: 'Particles', desc: 'Connected network', icon: <IconParticle size={16} /> },
+    { id: 'ripple',    label: 'Ripple',    desc: 'Expanding rings',   icon: <IconRipple   size={16} /> },
+    { id: 'starfield', label: 'Warp',      desc: 'Hyperspace effect', icon: <IconAurora   size={16} /> },
+    { id: 'lava',      label: 'Lava Lamp', desc: 'Morphing blobs',    icon: <IconBubble   size={16} /> },
   ]
 
   return (
     <div className={styles.section}>
       <h2 className={styles.sectionTitle}>Appearance</h2>
-      <p className={styles.sectionDesc}>Live preview — changes apply instantly. Default is Dark + Plain.</p>
+      <p className={styles.sectionDesc}>Live preview — changes apply instantly.</p>
 
-      {/* Theme */}
       <div className={styles.appearGroup}>
         <div className={styles.appearGroupLabel}>Theme</div>
         <div className={styles.themeGrid}>
@@ -310,7 +312,6 @@ function AppearanceSection({ s, update }: { s: KitsuneSettings; update: U }) {
         </div>
       </div>
 
-      {/* Accent */}
       <div className={styles.appearGroup}>
         <div className={styles.appearGroupLabel}>Accent Color</div>
         <div className={styles.accentGrid}>
@@ -332,12 +333,10 @@ function AppearanceSection({ s, update }: { s: KitsuneSettings; update: U }) {
               onChange={e => updateA({ accentCustom: e.target.value })} />
             <input type="text" className={styles.colorHex} value={a.accentCustom}
               onChange={e => { if (/^#[0-9a-fA-F]{0,6}$/.test(e.target.value)) updateA({ accentCustom: e.target.value }) }} />
-            <span className={styles.colorPreview} style={{ background: a.accentCustom }} />
           </div>
         )}
       </div>
 
-      {/* Background */}
       <div className={styles.appearGroup}>
         <div className={styles.appearGroupLabel}>Background</div>
         <div className={styles.optionRow}>
@@ -367,7 +366,6 @@ function AppearanceSection({ s, update }: { s: KitsuneSettings; update: U }) {
         )}
       </div>
 
-      {/* Texture */}
       <div className={styles.appearGroup}>
         <div className={styles.appearGroupLabel}>Surface Texture</div>
         <div className={styles.optionRow}>
@@ -382,7 +380,6 @@ function AppearanceSection({ s, update }: { s: KitsuneSettings; update: U }) {
         </div>
       </div>
 
-      {/* Animation */}
       <div className={styles.appearGroup}>
         <div className={styles.appearGroupLabel}>Background Animation</div>
         <div className={styles.animGrid}>
@@ -407,10 +404,8 @@ function AppearanceSection({ s, update }: { s: KitsuneSettings; update: U }) {
         )}
       </div>
 
-      {/* Shape & Layout */}
       <div className={styles.appearGroup}>
         <div className={styles.appearGroupLabel}>Shape & Layout</div>
-
         <div className={styles.shapeRow}>
           <span className={styles.shapeLabel}>Corners</span>
           {(['sharp','rounded','pill'] as const).map(r => (
@@ -422,7 +417,6 @@ function AppearanceSection({ s, update }: { s: KitsuneSettings; update: U }) {
             </button>
           ))}
         </div>
-
         <div className={styles.sliderRow}>
           <span className={styles.sliderLabel}>Sidebar width</span>
           <input type="range" min={180} max={320} value={a.sidebarWidth} className={styles.slider}
@@ -448,7 +442,6 @@ function AppearanceSection({ s, update }: { s: KitsuneSettings; update: U }) {
         </div>
       </div>
 
-      {/* Sidebar position */}
       <div className={styles.appearGroup}>
         <div className={styles.appearGroupLabel}>Sidebar Position</div>
         <div className={styles.themeGrid}>
@@ -481,6 +474,29 @@ function CornerIcon({ type }: { type: 'sharp'|'rounded'|'pill' }) {
   )
 }
 
+function MacrosSection({ onOpenREPL }: { onOpenREPL: () => void }) {
+  return (
+    <div className={styles.section} style={{ padding: 0, display: 'flex', flexDirection: 'column', height: '100%' }}>
+      <div style={{ padding: '20px 24px 12px', flexShrink: 0 }}>
+        <h2 className={styles.sectionTitle}>Macros & Automation</h2>
+        <p className={styles.sectionDesc}>
+          Create macros, aliases, workspace programs, and scheduled commands.
+          For interactive control, open the REPL with{' '}
+          <kbd style={{ fontFamily: 'var(--k-font-mono)', fontSize: 11, background: 'var(--k-surface-3)', border: '1px solid var(--k-border-2)', borderRadius: 4, padding: '1px 5px' }}>⌘`</kbd>
+          {' '}or{' '}
+          <button
+            onClick={onOpenREPL}
+            style={{ fontSize: 11, color: 'var(--k-fox)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>
+            click here to open REPL
+          </button>
+        </p>
+      </div>
+      <div style={{ flex: 1, overflow: 'hidden', minHeight: 0 }}>
+        <MacroEditor />
+      </div>
+    </div>
+  )
+}
 
 function HotkeysSection({ s }: { s: KitsuneSettings }) {
   return (
@@ -515,12 +531,12 @@ function AboutSection() {
         </div>
         <div>
           <h2 className={styles.aboutTitle}>Kitsune</h2>
-          <p className={styles.aboutVersion}>Version 0.9.4 — pre-release</p>
+          <p className={styles.aboutVersion}>Version 0.10.0-beta</p>
         </div>
       </div>
       <p className={styles.aboutDesc}>
-        An AI-native browser built on Electron. Fast, private, and intelligent.
-        AI powered by HackClub (free). Privacy by default.
+        An AI-native, fully programmable browser built on Electron. Fast, private, and intelligent.
+        AI powered by HackClub (free). Privacy by default. Programmable control via the Command Engine.
       </p>
     </div>
   )

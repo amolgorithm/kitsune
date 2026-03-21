@@ -85,4 +85,8 @@ export const Push = {
     ipc.on('cleave:set-layout', fn as any),
   onGroupsUpdate: (fn: (groups: TabGroup[]) => void) =>
     ipc.on('groups:update', fn as any),
+  onCommandUI: (fn: (action: { action: string; [k: string]: unknown }) => void) =>
+    ipc.on('command:ui' as any, fn as any),
 }
+
+export { CommandIPC } from './commandIpc'

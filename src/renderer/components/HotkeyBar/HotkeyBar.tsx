@@ -2,6 +2,7 @@
 import styles from './HotkeyBar.module.css'
 
 const HINTS = [
+  { key: '⌘`',  label: 'REPL'     },
   { key: '⌘K',  label: 'Commands' },
   { key: '⌘T',  label: 'New Tab'  },
   { key: '⌘W',  label: 'Close'    },

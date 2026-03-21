@@ -33,6 +33,7 @@ interface BrowserState {
   navState: Record<string, NavState>
   bookmarks: Bookmark[]
   readingMode: boolean
+  sidebarHidden: boolean
 
   aiPanelOpen: boolean
   aiPanelTab: AIPanelTab
@@ -44,6 +45,7 @@ interface BrowserState {
   settingsOpen: boolean
   cleaveOpen: boolean
   fileSearchOpen: boolean
+  replOpen: boolean
   urlBarFocused: boolean
   urlBarValue: string
 
@@ -94,6 +96,9 @@ interface BrowserState {
   closeSettings:       () => void
   toggleCleave:        () => void
   toggleFileSearch:    () => void
+  toggleREPL:          () => void
+  openREPL:            () => void
+  closeREPL:           () => void
   setUrlBarFocused:    (v: boolean) => void
   setUrlBarValue:      (v: string) => void
 
@@ -110,12 +115,14 @@ export const useBrowserStore = create<BrowserState>()(
     activeWorkspaceId: 'default', settings: DEFAULT_SETTINGS,
     layout: null, lenses: BUILT_IN_LENSES, activeLensId: LENS_IDS.DEFAULT,
     initError: null, navState: {}, bookmarks: [], readingMode: false,
+    sidebarHidden: false,
 
     aiPanelOpen: false, aiPanelTab: 'summary',
     aiSummaries: new Map(), chatMessages: [], chatLoading: false,
 
     commandPaletteOpen: false, settingsOpen: false, cleaveOpen: false,
-    fileSearchOpen: false, urlBarFocused: false, urlBarValue: '',
+    fileSearchOpen: false, replOpen: false,
+    urlBarFocused: false, urlBarValue: '',
 
     // ── Tab actions ─────────────────────────────────────────────
     createTab: async (url) => {
@@ -280,6 +287,13 @@ export const useBrowserStore = create<BrowserState>()(
       if (next) TabIPC.modalOpen(); else TabIPC.modalClose()
       set(s => { s.fileSearchOpen = next })
     },
+    toggleREPL: () => {
+      const next = !get().replOpen
+      if (next) TabIPC.modalOpen(); else TabIPC.modalClose()
+      set(s => { s.replOpen = next })
+    },
+    openREPL:  () => { TabIPC.modalOpen();  set(s => { s.replOpen = true  }) },
+    closeREPL: () => { TabIPC.modalClose(); set(s => { s.replOpen = false }) },
     setUrlBarFocused: (v) => set(s => { s.urlBarFocused = v }),
     setUrlBarValue:   (v) => set(s => { s.urlBarValue = v }),
 
@@ -288,11 +302,9 @@ export const useBrowserStore = create<BrowserState>()(
       const s = get().settings
       const root = document.documentElement
 
-      // Sidebar position
       if (s.sidebarPosition === 'right') root.classList.add('sidebar-right')
       else root.classList.remove('sidebar-right')
 
-      // Full appearance engine
       import('../lib/appearance').then(({ applyAppearance }) => {
         applyAppearance(s.appearance ?? {
           themeBase: (s.theme as any) ?? 'dark', accentPreset: 'fox', accentCustom: '#ff6b35',
@@ -309,7 +321,6 @@ export const useBrowserStore = create<BrowserState>()(
       try {
         const updated = await SettingsIPC.set(patch)
         set(s => { s.settings = updated })
-        // applySettingsToDOM will run via useEffect in App.tsx
       } catch (e) { console.error('updateSettings:', e) }
     },
 
@@ -367,6 +378,54 @@ export const useBrowserStore = create<BrowserState>()(
       window.kitsune.on('settings:update' as any, (updated: KitsuneSettings) => {
         set(s => { s.settings = updated })
         get().applySettingsToDOM()
+      })
+
+      // ── Command engine UI actions pushed from main ─────────────
+      window.kitsune.on('command:ui' as any, (action: any) => {
+        const store = get()
+        switch (action.action) {
+          case 'ai.panel.toggle':
+            store.toggleAIPanel()
+            break
+          case 'ai.panel.open':
+            set(s => { s.aiPanelOpen = true })
+            TabIPC.setAIPanelWidth(340).catch(console.error)
+            break
+          case 'ai.panel.close':
+            set(s => { s.aiPanelOpen = false })
+            TabIPC.setAIPanelWidth(0).catch(console.error)
+            break
+          case 'ai.panel.tab':
+            set(s => { s.aiPanelTab = action.tab })
+            break
+          case 'lens.set':
+            set(s => { s.activeLensId = action.id })
+            break
+          case 'ui.commandPalette':
+            store.openCommandPalette()
+            break
+          case 'ui.settings':
+            store.openSettings()
+            break
+          case 'ui.fileSearch':
+            store.toggleFileSearch()
+            break
+          case 'ui.cleave':
+            store.toggleCleave()
+            break
+          case 'ui.sidebar.toggle':
+            set(s => { s.sidebarHidden = !s.sidebarHidden })
+            break
+          case 'ui.readingMode':
+            store.toggleReadingMode()
+            break
+          case 'ui.focusUrlBar':
+            set(s => { s.urlBarFocused = true })
+            break
+          case 'workspace.switched':
+            set(s => { s.activeWorkspaceId = action.id })
+            break
+        }
       })
     },
   }))

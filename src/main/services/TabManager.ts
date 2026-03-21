@@ -24,7 +24,7 @@ const SIDEBAR_W  = 240
 const BOTTOM_H   = 24 + 28         // statusbar(24) + hotkeybar(28)
 
 export class TabManager {
-  private views       = new Map<string, BrowserView>()
+  public views       = new Map<string, BrowserView>()
   private tabs        = new Map<string, KitsuneTab>()
   private activeTabId: string | null = null
   private aiPanelWidth = 0
@@ -184,6 +184,14 @@ export class TabManager {
     tab.status         = 'loading'
     tab.lastAccessedAt = Date.now()
     this.pushTabUpdate(tab)
+  }
+
+  async evalInTab(id: string, code: string): Promise<unknown> {
+    const view = this.views.get(id)
+    if (!view) return null
+    try {
+      return await view.webContents.executeJavaScript(code)
+    } catch (e) { throw e }
   }
 
   // ─── Navigation ────────────────────────────────────────────────

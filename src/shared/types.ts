@@ -101,6 +101,14 @@ export type IPCChannel =
   | 'cleave:set-layout' | 'cleave:get-layout' | 'cleave:reset'
   | 'settings:get' | 'settings:set' | 'settings:update'
   | 'window:minimize' | 'window:maximize' | 'window:close'
+  | 'cmd:execute' | 'cmd:chain.run'
+  | 'cmd:macro.list' | 'cmd:macro.get' | 'cmd:macro.create' | 'cmd:macro.update' | 'cmd:macro.delete' | 'cmd:macro.run'
+  | 'cmd:alias.list' | 'cmd:alias.create' | 'cmd:alias.delete' | 'cmd:alias.expand'
+  | 'cmd:program.list' | 'cmd:program.create' | 'cmd:program.delete' | 'cmd:program.run'
+  | 'cmd:scheduled.list' | 'cmd:scheduled.create' | 'cmd:scheduled.toggle' | 'cmd:scheduled.delete'
+  | 'cmd:history.list' | 'cmd:history.clear' | 'cmd:undo'
+  | 'cmd:commands.list'
+  | 'command:ui'
 
 // ─── Appearance system ────────────────────────────────────────────
 

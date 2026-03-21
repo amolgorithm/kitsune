@@ -13,6 +13,7 @@ import { SettingsModal } from './components/Settings/SettingsModal'
 import { CleaveOverlay } from './components/Cleave/CleaveOverlay'
 import { HotkeyBar } from './components/HotkeyBar/HotkeyBar'
 import { FileSearch } from './components/FileSearch/FileSearch'
+import { CommandREPL } from './components/CommandREPL/CommandREPL'
 import './styles/global.css'
 import './styles/tokens.css'
 import './styles/lenses.css'
@@ -26,6 +27,7 @@ export default function App() {
   const settingsOpen       = useBrowserStore(s => s.settingsOpen)
   const cleaveOpen         = useBrowserStore(s => s.cleaveOpen)
   const fileSearchOpen     = useBrowserStore(s => s.fileSearchOpen)
+  const replOpen           = useBrowserStore(s => s.replOpen)
   const activeLensId       = useBrowserStore(s => s.activeLensId)
   const settings           = useBrowserStore(s => s.settings)
   const applySettingsToDOM = useBrowserStore(s => s.applySettingsToDOM)
@@ -35,6 +37,7 @@ export default function App() {
   const toggleCleave       = useBrowserStore(s => s.toggleCleave)
   const openSettings       = useBrowserStore(s => s.openSettings)
   const toggleFileSearch   = useBrowserStore(s => s.toggleFileSearch)
+  const toggleREPL         = useBrowserStore(s => s.toggleREPL)
   const createTab          = useBrowserStore(s => s.createTab)
   const closeTab           = useBrowserStore(s => s.closeTab)
   const activeTabId        = useBrowserStore(s => s.activeTabId)
@@ -52,12 +55,14 @@ export default function App() {
     if (meta && e.shiftKey && e.key === 'f')      { e.preventDefault(); toggleFileSearch() }
     if (meta && e.key === 't')                    { e.preventDefault(); createTab('kitsune://newtab') }
     if (meta && e.key === 'w' && activeTabId)     { e.preventDefault(); closeTab(activeTabId) }
+    if (meta && e.key === '`')                    { e.preventDefault(); toggleREPL() }
+    if (meta && e.shiftKey && e.key === ';')      { e.preventDefault(); toggleREPL() }
     if (e.ctrlKey && e.key === '1')               { e.preventDefault(); setActiveLens('default') }
     if (e.ctrlKey && e.key === '2')               { e.preventDefault(); setActiveLens('research') }
     if (e.ctrlKey && e.key === '3')               { e.preventDefault(); setActiveLens('coding') }
     if (e.ctrlKey && e.key === '4')               { e.preventDefault(); setActiveLens('reading') }
   }, [openCommandPalette, toggleCleave, openSettings, toggleAIPanel, toggleFileSearch,
-      createTab, closeTab, activeTabId, setActiveLens])
+      createTab, closeTab, activeTabId, setActiveLens, toggleREPL])
 
   useEffect(() => {
     window.addEventListener('keydown', handleKeyDown)
@@ -100,6 +105,7 @@ export default function App() {
       {settingsOpen   && <SettingsModal />}
       {cleaveOpen     && <CleaveOverlay />}
       {fileSearchOpen && <FileSearch />}
+      {replOpen       && <CommandREPL />}
     </div>
   )
 }

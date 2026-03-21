@@ -10,12 +10,16 @@ import { AIService } from './services/AIService'
 import { WorkspaceManager } from './services/WorkspaceManager'
 import { CleaveManager } from './services/CleaveManager'
 import { SettingsStore } from './services/SettingsStore'
+import { CommandEngine } from './services/CommandEngine'
+import { CommandExecutorImpl } from './services/CommandExecutorImpl'
 import { registerTabIPC } from './ipc/tabIPC'
 import { registerAIIPC } from './ipc/aiIPC'
 import { registerPrivacyIPC } from './ipc/privacyIPC'
 import { registerWorkspaceIPC } from './ipc/workspaceIPC'
 import { registerCleaveIPC } from './ipc/cleaveIPC'
 import { registerSettingsIPC } from './ipc/settingsIPC'
+import { registerCommandIPC } from './ipc/commandIPC'
+
 
 const DEV        = !app.isPackaged
 const IS_MAC     = process.platform === 'darwin'
@@ -33,6 +37,7 @@ let privacyEngine: PrivacyEngine
 let aiService: AIService
 let workspaceManager: WorkspaceManager
 let cleaveManager: CleaveManager
+let commandEngine: CommandEngine
 
 app.whenReady().then(async () => {
   settings = new SettingsStore()
@@ -52,6 +57,15 @@ app.whenReady().then(async () => {
 
   tabManager = new TabManager(workspaceManager, settings, mainWindow)
 
+  commandEngine = new CommandEngine(settings)
+  const cmdExecutor = new CommandExecutorImpl(
+    tabManager, workspaceManager, aiService,
+    privacyEngine, settings, hibernationScheduler, mainWindow
+  )
+
+  commandEngine.setExecutor(cmdExecutor)
+  commandEngine.startScheduler()
+
   hibernationScheduler = new HibernationScheduler(tabManager, settings)
   hibernationScheduler.start()
 
@@ -62,6 +76,7 @@ app.whenReady().then(async () => {
   registerWorkspaceIPC(ipcMain, workspaceManager, tabManager, aiService, mainWindow)
   registerCleaveIPC(ipcMain, cleaveManager, tabManager, mainWindow)
   registerSettingsIPC(ipcMain, settings, mainWindow)
+  registerCommandIPC(ipcMain, commandEngine, tabManager, workspaceManager, aiService, mainWindow)
 
   ipcMain.handle('window:minimize', () => mainWindow?.minimize())
   ipcMain.handle('window:maximize', () => {
@@ -82,6 +97,7 @@ app.whenReady().then(async () => {
 
 app.on('window-all-closed', () => {
   hibernationScheduler?.stop()
+  commandEngine?.stopScheduler()
   if (!IS_MAC) app.quit()
 })
 
