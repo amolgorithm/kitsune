@@ -38,11 +38,11 @@
     "appId": "com.kitsune.browser",
     "productName": "Kitsune",
     "directories": {
-      "output": "release",
-      "releaseType": "prerelease"
+      "output": "release"
     },
     "publish": {
-      "provider": "github"
+      "provider": "github",
+      "releaseType": "prerelease"
     },
     "files": [
       "dist/**/*",
@@ -51,24 +51,15 @@
     "mac": {
       "icon": "assets/logo.icns",
       "category": "public.app-category.productivity",
-      "target": [
-        "dmg",
-        "zip"
-      ]
+      "target": ["dmg", "zip"]
     },
     "win": {
       "icon": "assets/logo.ico",
-      "target": [
-        "nsis",
-        "portable"
-      ]
+      "target": ["nsis", "portable"]
     },
     "linux": {
       "icon": "assets/logo.png",
-      "target": [
-        "AppImage",
-        "deb"
-      ]
+      "target": ["AppImage", "deb"]
     }
   }
 }
