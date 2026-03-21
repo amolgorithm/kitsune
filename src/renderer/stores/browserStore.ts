@@ -375,11 +375,11 @@ export const useBrowserStore = create<BrowserState>()(
       Push.onGroupsUpdate(groups => get().setGroupsFromPush(groups))
 
       // Settings pushed from main when changed
-      window.kitsune.on('settings:update' as any, (updated: KitsuneSettings) => {
-        set(s => { s.settings = updated })
+      window.kitsune.on('settings:update' as any, (updated: unknown) => {
+        set(s => { s.settings = updated as KitsuneSettings })
         get().applySettingsToDOM()
       })
-
+      
       // ── Command engine UI actions pushed from main ─────────────
       window.kitsune.on('command:ui' as any, (action: any) => {
         const store = get()

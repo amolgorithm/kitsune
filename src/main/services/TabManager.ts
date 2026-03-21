@@ -158,7 +158,7 @@ export class TabManager {
     if (!view) return
 
     try {
-      const mem = await view.webContents.getProcessMemoryInfo()
+      const mem = await view.webContents.executeJavaScript('process.getProcessMemoryInfo ? process.getProcessMemoryInfo() : {privateBytes:0}').catch(() => ({ privateBytes: 0 })) as any
       tab.memoryBytes = (mem.privateBytes ?? 0) * 1024
     } catch { /* already destroyed */ }
 

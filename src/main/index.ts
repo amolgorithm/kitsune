@@ -42,7 +42,7 @@ let commandEngine: CommandEngine
 app.whenReady().then(async () => {
   settings = new SettingsStore()
   await settings.init()
-  nativeTheme.themeSource = settings.get('theme')
+  nativeTheme.themeSource = (settings.get('theme') as 'dark' | 'light' | 'system') ?? 'dark'
 
   workspaceManager = new WorkspaceManager(settings)
   await workspaceManager.init()
