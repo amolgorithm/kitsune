@@ -42,7 +42,7 @@ export function NewTabPage() {
     <div className={styles.page}>
       <div className={styles.inner}>
         <div className={styles.greeting}>
-          <h1 className={styles.greetingText}>{greeting}.</h1>
+          <h1 className={styles.greetingText}>Experience the cooler fox browser.</h1>
           <p className={styles.greetingSub}>Where are we going?</p>
         </div>
 

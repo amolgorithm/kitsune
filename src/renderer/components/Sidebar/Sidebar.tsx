@@ -246,11 +246,13 @@ function FooterItem({ icon, label, kbd, onClick }: {
 
 function KitsuneLogo() {
   return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-      <path d="M8 1L4 4 2 8l2 3 4 1 4-1 2-3-2-4z" fill="#ff6b35" />
-      <path d="M4 4L2 2M12 4l2-2" stroke="#ff6b35" strokeWidth="1.5" strokeLinecap="round" />
-      <circle cx="6" cy="8" r="1" fill="white" />
-      <circle cx="10" cy="8" r="1" fill="white" />
-    </svg>
+    <img
+      src="../../../assets/logo.png"
+      width={30}
+      height={30}
+      alt="Kitsune"
+      draggable={false}
+      style={{ objectFit: 'contain' }}
+    />
   )
 }

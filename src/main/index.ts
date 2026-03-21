@@ -60,7 +60,7 @@ app.whenReady().then(async () => {
   registerPrivacyIPC(ipcMain, privacyEngine)
   // Pass tabManager + aiService so workspace IPC can do AI clustering
   registerWorkspaceIPC(ipcMain, workspaceManager, tabManager, aiService, mainWindow)
-  registerCleaveIPC(ipcMain, cleaveManager, mainWindow)
+  registerCleaveIPC(ipcMain, cleaveManager, tabManager, mainWindow)
   registerSettingsIPC(ipcMain, settings)
 
   ipcMain.handle('window:minimize', () => mainWindow?.minimize())
@@ -100,6 +100,7 @@ function createMainWindow(): BrowserWindow {
       sandbox: false,
       webSecurity: true,
     },
+    icon: join(__dirname, '../../assets/logo.png'),
   })
 
   win.webContents.on('console-message', (_e, level, msg, line, src) => {

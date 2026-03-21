@@ -274,13 +274,14 @@ function AboutSection() {
     <div className={styles.section}>
       <div className={styles.aboutHeader}>
         <div className={styles.aboutLogoWrap}>
-          <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
-            <rect width="40" height="40" rx="10" fill="#ff6b35" />
-            <path d="M20 6L10 13 7 20l3 8 10 3 10-3 3-8-3-7z" fill="white" opacity=".9" />
-            <path d="M10 13L7 8M30 13l3-5" stroke="white" strokeWidth="2.5" strokeLinecap="round" />
-            <circle cx="16" cy="20" r="2.5" fill="#ff6b35" />
-            <circle cx="24" cy="20" r="2.5" fill="#ff6b35" />
-          </svg>
+          <img
+            src="../../../assets/logo.png"
+            width={40}
+            height={40}
+            alt="Kitsune"
+            draggable={false}
+            style={{ objectFit: 'contain', borderRadius: 10 }}
+          />
         </div>
         <div>
           <h2 className={styles.aboutTitle}>Kitsune</h2>
