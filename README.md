@@ -1,8 +1,7 @@
-<<<<<<< HEAD
-# 🦊 Kitsune Browser
+# Kitsune Browser
 
-> An AI-native, RAM-efficient browser built on Electron + React + TypeScript.  
-> Designed with the philosophy: **fast by default, intelligent when you need it, private always.**
+> An AI-native, RAM-efficient browser built on Electron + React + TS.  
+> Developed for absolutely no purpose.
 
 ---
 
