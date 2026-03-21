@@ -45,7 +45,7 @@
       "dist-electron/**/*"
     ],
     "mac": {
-      "icon": "assets/icon.icns",
+      "icon": "assets/logo.icns",
       "category": "public.app-category.productivity",
       "target": [
         "dmg",
@@ -53,14 +53,14 @@
       ]
     },
     "win": {
-      "icon": "assets/icon.ico",
+      "icon": "assets/logo.ico",
       "target": [
         "nsis",
         "portable"
       ]
     },
     "linux": {
-      "icon": "assets/icon.png",
+      "icon": "assets/logo.png",
       "target": [
         "AppImage",
         "deb"

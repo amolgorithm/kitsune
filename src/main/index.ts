@@ -89,6 +89,7 @@ function createMainWindow(): BrowserWindow {
   const win = new BrowserWindow({
     width: 1440, height: 900, minWidth: 900, minHeight: 600,
     backgroundColor: '#0d0f12', show: false,
+    icon: join(app.getAppPath(), 'assets/logo.png'),
     ...(IS_MAC
       ? { titleBarStyle: 'hiddenInset', trafficLightPosition: { x: 14, y: 9 } }
       : { frame: false }
@@ -100,7 +101,6 @@ function createMainWindow(): BrowserWindow {
       sandbox: false,
       webSecurity: true,
     },
-    icon: join(__dirname, '../../assets/logo.png'),
   })
 
   win.webContents.on('console-message', (_e, level, msg, line, src) => {

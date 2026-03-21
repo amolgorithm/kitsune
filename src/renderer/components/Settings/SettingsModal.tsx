@@ -505,7 +505,7 @@ function AboutSection() {
       <div className={styles.aboutHeader}>
         <div className={styles.aboutLogoWrap}>
           <img
-            src="../../../assets/logo.png"
+            src={new URL('../../../assets/logo.png', import.meta.url).href}
             width={40}
             height={40}
             alt="Kitsune"

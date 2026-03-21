@@ -248,7 +248,7 @@ function FooterItem({ icon, label, kbd, onClick }: {
 function KitsuneLogo() {
   return (
     <img
-      src="../../../assets/logo.png"
+      src={new URL('../../assets/logo.png', import.meta.url).href}
       width={30}
       height={30}
       alt="Kitsune"
