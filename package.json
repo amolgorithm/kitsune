@@ -1,6 +1,6 @@
 {
   "name": "kitsune",
-  "version": "0.9.4",
+  "version": "0.9.4-beta",
   "description": "Kitsune — AI-native browser built on Electron",
   "main": "dist-electron/main/index.js",
   "author": "Kitsune Contributors",
@@ -38,7 +38,8 @@
     "appId": "com.kitsune.browser",
     "productName": "Kitsune",
     "directories": {
-      "output": "release"
+      "output": "release",
+      "releaseType": "prerelease"
     },
     "publish": {
       "provider": "github"
