@@ -1,7 +1,7 @@
 /* src/renderer/components/StatusBar/StatusBar.module.css */
 .bar {
   height: var(--k-statusbar-h);
-  background: var(--k-bg);
+  background: var(--k-panel-bg);
   border-top: 1px solid var(--k-border);
   display: flex;
   align-items: center;

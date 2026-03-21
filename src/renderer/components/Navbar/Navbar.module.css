@@ -2,7 +2,7 @@
 
 .navbar {
   height: var(--k-navbar-h);
-  background: var(--k-surface);
+  background: var(--k-panel-surface);
   border-bottom: 1px solid var(--k-border);
   display: flex;
   align-items: center;
@@ -192,3 +192,33 @@
   background: var(--k-ai-2);
   border-color: var(--k-ai-2);
 }
+
+/* More menu */
+.moreWrap { position: relative; }
+.moreMenu {
+  position: absolute; top: calc(100% + 6px); right: 0; z-index: var(--k-z-modal);
+  background: var(--k-panel-surface); border: 1px solid var(--k-border-2);
+  border-radius: var(--k-radius); box-shadow: var(--k-shadow-lg);
+  min-width: 200px; padding: 4px; overflow: hidden;
+  animation: k-scale-in var(--k-duration-fast) var(--k-ease);
+  transform-origin: top right;
+}
+.moreMenuItem {
+  display: flex; align-items: center; justify-content: space-between;
+  width: 100%; padding: 7px 10px; border-radius: var(--k-radius-sm);
+  font-size: var(--k-text-sm); color: var(--k-text-2); cursor: pointer;
+  transition: var(--k-transition-fast); text-align: left;
+}
+.moreMenuItem:hover { background: var(--k-surface-2); color: var(--k-text); }
+.moreMenuKbd {
+  font-family: var(--k-font-mono); font-size: 10px;
+  background: var(--k-surface-3); border: 1px solid var(--k-border);
+  border-radius: 4px; padding: 1px 5px; color: var(--k-text-3);
+}
+.moreMenuDivider { height: 1px; background: var(--k-border); margin: 3px 0; }
+
+/* Active state for reading mode btn */
+.navBtnActive { background: var(--k-fox-dim) !important; color: var(--k-fox) !important; }
+
+/* Bookmark accent color when saved */
+.iconAccent { color: var(--k-fox); }

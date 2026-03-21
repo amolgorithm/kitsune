@@ -8,6 +8,7 @@ const HINTS = [
   { key: '⌘\\', label: 'Cleave'   },
   { key: '⌘⇧A', label: 'AI'       },
   { key: '⌘,',  label: 'Settings' },
+  { key: '⌘⇧F', label: 'Files'    },
   { key: '⌃1',  label: 'Default'  },
   { key: '⌃2',  label: 'Research' },
   { key: '⌃3',  label: 'Code'     },

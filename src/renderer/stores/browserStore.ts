@@ -3,7 +3,7 @@ import { create } from 'zustand'
 import { immer } from 'zustand/middleware/immer'
 import type {
   KitsuneTab, TabGroup, Workspace, KitsuneSettings,
-  PaneNode, AISummary, ChatMessage, LensProfile, AIPanelTab,
+  PaneNode, AISummary, ChatMessage, LensProfile, AIPanelTab, Bookmark,
 } from '../../shared/types'
 import { DEFAULT_SETTINGS } from '../../shared/types'
 import { LENS_IDS } from '../../shared/constants'
@@ -31,6 +31,8 @@ interface BrowserState {
   activeLensId: string
   initError: string | null
   navState: Record<string, NavState>
+  bookmarks: Bookmark[]
+  readingMode: boolean
 
   aiPanelOpen: boolean
   aiPanelTab: AIPanelTab
@@ -41,6 +43,7 @@ interface BrowserState {
   commandPaletteOpen: boolean
   settingsOpen: boolean
   cleaveOpen: boolean
+  fileSearchOpen: boolean
   urlBarFocused: boolean
   urlBarValue: string
 
@@ -57,10 +60,15 @@ interface BrowserState {
   updateTabFromPush: (tab: KitsuneTab) => void
   removeTabFromPush: (id: string) => void
 
+  // Bookmarks
+  addBookmark:    (tab: KitsuneTab) => void
+  removeBookmark: (url: string) => void
+  isBookmarked:   (url: string) => boolean
+
   // Groups
-  createGroup:    (params: Partial<TabGroup> & { workspaceId: string }) => Promise<void>
-  deleteGroup:    (id: string) => Promise<void>
-  aiClusterTabs:  () => Promise<void>
+  createGroup:       (params: Partial<TabGroup> & { workspaceId: string }) => Promise<void>
+  deleteGroup:       (id: string) => Promise<void>
+  aiClusterTabs:     () => Promise<void>
   setGroupsFromPush: (groups: TabGroup[]) => void
 
   // Workspace
@@ -76,14 +84,22 @@ interface BrowserState {
   // Lens
   setActiveLens: (id: string) => void
 
+  // Reading mode
+  toggleReadingMode: () => void
+
   // UI
   openCommandPalette:  () => void
   closeCommandPalette: () => void
   openSettings:        () => void
   closeSettings:       () => void
   toggleCleave:        () => void
+  toggleFileSearch:    () => void
   setUrlBarFocused:    (v: boolean) => void
   setUrlBarValue:      (v: string) => void
+
+  // Settings side effects
+  applySettingsToDOM: () => void
+  updateSettings:     (patch: Partial<KitsuneSettings>) => Promise<void>
 
   init: () => Promise<void>
 }
@@ -93,16 +109,15 @@ export const useBrowserStore = create<BrowserState>()(
     tabs: [], activeTabId: null, groups: [], workspaces: [],
     activeWorkspaceId: 'default', settings: DEFAULT_SETTINGS,
     layout: null, lenses: BUILT_IN_LENSES, activeLensId: LENS_IDS.DEFAULT,
-    initError: null, navState: {},
+    initError: null, navState: {}, bookmarks: [], readingMode: false,
 
     aiPanelOpen: false, aiPanelTab: 'summary',
     aiSummaries: new Map(), chatMessages: [], chatLoading: false,
 
     commandPaletteOpen: false, settingsOpen: false, cleaveOpen: false,
-    urlBarFocused: false, urlBarValue: '',
+    fileSearchOpen: false, urlBarFocused: false, urlBarValue: '',
 
     // ── Tab actions ─────────────────────────────────────────────
-    // Do NOT push tab locally — pushTabUpdate in main is single source of truth
     createTab: async (url) => {
       try { await TabIPC.create({ url, workspaceId: get().activeWorkspaceId }) }
       catch (e) { console.error('createTab:', e) }
@@ -126,17 +141,11 @@ export const useBrowserStore = create<BrowserState>()(
       try { await TabIPC.navigate(id, normalized) }
       catch (e) { console.error('navigateTab:', e) }
     },
-    hibernateTab: async (id) => {
-      try { await TabIPC.hibernate(id) }
-      catch (e) { console.error('hibernateTab:', e) }
-    },
-    wakeTab: async (id) => {
-      try { await TabIPC.wake(id) }
-      catch (e) { console.error('wakeTab:', e) }
-    },
-    goBack:    async (id) => { try { await TabIPC.goBack(id) }    catch (e) { console.error(e) } },
-    goForward: async (id) => { try { await TabIPC.goForward(id) } catch (e) { console.error(e) } },
-    reload:    async (id) => { try { await TabIPC.reload(id) }    catch (e) { console.error(e) } },
+    hibernateTab: async (id) => { try { await TabIPC.hibernate(id) } catch (e) { console.error(e) } },
+    wakeTab:      async (id) => { try { await TabIPC.wake(id) }      catch (e) { console.error(e) } },
+    goBack:       async (id) => { try { await TabIPC.goBack(id) }    catch (e) { console.error(e) } },
+    goForward:    async (id) => { try { await TabIPC.goForward(id) } catch (e) { console.error(e) } },
+    reload:       async (id) => { try { await TabIPC.reload(id) }    catch (e) { console.error(e) } },
 
     updateTabFromPush: (tab) => {
       set(s => {
@@ -152,6 +161,25 @@ export const useBrowserStore = create<BrowserState>()(
         if (s.activeTabId === id) s.activeTabId = null
       })
     },
+
+    // ── Bookmarks ───────────────────────────────────────────────
+    addBookmark: (tab) => {
+      set(s => {
+        if (s.bookmarks.some(b => b.url === tab.url)) return
+        s.bookmarks.push({
+          id: crypto.randomUUID(),
+          url: tab.url,
+          title: tab.title,
+          favicon: tab.favicon,
+          tags: [],
+          addedAt: Date.now(),
+        })
+      })
+    },
+    removeBookmark: (url) => {
+      set(s => { s.bookmarks = s.bookmarks.filter(b => b.url !== url) })
+    },
+    isBookmarked: (url) => get().bookmarks.some(b => b.url === url),
 
     // ── Groups ──────────────────────────────────────────────────
     createGroup: async (params) => {
@@ -214,21 +242,14 @@ export const useBrowserStore = create<BrowserState>()(
         const { AIIPC } = await import('../lib/ipc')
         const response = await AIIPC.chat([...get().chatMessages], get().activeTabId ?? undefined)
         set(s => {
-          s.chatMessages.push({
-            id: crypto.randomUUID(), role: 'assistant', content: response, createdAt: Date.now(),
-          })
+          s.chatMessages.push({ id: crypto.randomUUID(), role: 'assistant', content: response, createdAt: Date.now() })
         })
       } catch (e) {
-        const msg = (e as any)?.message ?? String(e)
         set(s => {
-          s.chatMessages.push({
-            id: crypto.randomUUID(), role: 'assistant',
-            content: `Error: ${msg}`, createdAt: Date.now(),
-          })
+          s.chatMessages.push({ id: crypto.randomUUID(), role: 'assistant',
+            content: `Error: ${(e as any)?.message ?? String(e)}`, createdAt: Date.now() })
         })
-      } finally {
-        set(s => { s.chatLoading = false })
-      }
+      } finally { set(s => { s.chatLoading = false }) }
     },
 
     // ── Lens ────────────────────────────────────────────────────
@@ -238,9 +259,11 @@ export const useBrowserStore = create<BrowserState>()(
         const lens = s.lenses.find(l => l.id === id)
         if (lens) s.aiPanelTab = lens.defaultAITab
       })
-      // Persist lens choice
       SettingsIPC.set({ activeLensId: id }).catch(console.error)
     },
+
+    // ── Reading mode ────────────────────────────────────────────
+    toggleReadingMode: () => set(s => { s.readingMode = !s.readingMode }),
 
     // ── UI ──────────────────────────────────────────────────────
     openCommandPalette:  () => { TabIPC.modalOpen(); set(s => { s.commandPaletteOpen = true }) },
@@ -252,8 +275,43 @@ export const useBrowserStore = create<BrowserState>()(
       if (next) TabIPC.modalOpen(); else TabIPC.modalClose()
       set(s => { s.cleaveOpen = next })
     },
+    toggleFileSearch: () => {
+      const next = !get().fileSearchOpen
+      if (next) TabIPC.modalOpen(); else TabIPC.modalClose()
+      set(s => { s.fileSearchOpen = next })
+    },
     setUrlBarFocused: (v) => set(s => { s.urlBarFocused = v }),
     setUrlBarValue:   (v) => set(s => { s.urlBarValue = v }),
+
+    // ── Settings side effects ────────────────────────────────────
+    applySettingsToDOM: () => {
+      const s = get().settings
+      const root = document.documentElement
+
+      // Sidebar position
+      if (s.sidebarPosition === 'right') root.classList.add('sidebar-right')
+      else root.classList.remove('sidebar-right')
+
+      // Full appearance engine
+      import('../lib/appearance').then(({ applyAppearance }) => {
+        applyAppearance(s.appearance ?? {
+          themeBase: (s.theme as any) ?? 'dark', accentPreset: 'fox', accentCustom: '#ff6b35',
+          backgroundStyle: 'plain', backgroundGradientFrom: '#0d0f12',
+          backgroundGradientTo: '#1a1e27', textureStyle: 'smooth',
+          animationStyle: 'none', animationIntensity: 50,
+          sidebarBlur: false, borderRadius: 'rounded',
+          fontScale: 1, sidebarWidth: 240, tabHeight: 36,
+        })
+      })
+    },
+
+    updateSettings: async (patch) => {
+      try {
+        const updated = await SettingsIPC.set(patch)
+        set(s => { s.settings = updated })
+        // applySettingsToDOM will run via useEffect in App.tsx
+      } catch (e) { console.error('updateSettings:', e) }
+    },
 
     // ── Bootstrap ───────────────────────────────────────────────
     init: async () => {
@@ -279,6 +337,7 @@ export const useBrowserStore = create<BrowserState>()(
           s.layout           = layout
           s.activeWorkspaceId = workspaces[0]?.id ?? 'default'
         })
+        get().applySettingsToDOM()
       } catch (e) {
         console.error('init failed:', e)
         set(s => { s.initError = String(e) })
@@ -303,6 +362,12 @@ export const useBrowserStore = create<BrowserState>()(
       }))
       Push.onLayoutUpdate(layout => set(s => { s.layout = layout }))
       Push.onGroupsUpdate(groups => get().setGroupsFromPush(groups))
+
+      // Settings pushed from main when changed
+      window.kitsune.on('settings:update' as any, (updated: KitsuneSettings) => {
+        set(s => { s.settings = updated })
+        get().applySettingsToDOM()
+      })
     },
   }))
 )

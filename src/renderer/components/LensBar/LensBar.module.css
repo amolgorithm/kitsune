@@ -1,7 +1,7 @@
 /* src/renderer/components/LensBar/LensBar.module.css */
 .lensBar {
   height: var(--k-lensbar-h);
-  background: var(--k-surface);
+  background: var(--k-panel-surface);
   border-bottom: 1px solid var(--k-border);
   display: flex;
   align-items: center;

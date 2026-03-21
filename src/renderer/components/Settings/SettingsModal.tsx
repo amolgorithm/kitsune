@@ -2,7 +2,9 @@
 import { useState, useEffect } from 'react'
 import { useBrowserStore } from '../../stores/browserStore'
 import { SettingsIPC } from '../../lib/ipc'
-import type { KitsuneSettings } from '../../../shared/types'
+import type { KitsuneSettings, AppearanceSettings, AccentPreset, BackgroundStyle, TextureStyle, AnimationStyle, ThemeBase } from '../../../shared/types'
+import { DEFAULT_APPEARANCE } from '../../../shared/types'
+import { IconMoon, IconSun, IconMonitor, IconSidebarLeft, IconSidebarRight, IconAnimNone, IconBubble, IconAurora, IconParticle, IconRipple, IconGrain, IconMesh, IconGradientLinear, IconDotGrid, IconLineGrid, IconNoise } from '../Icons'
 import {
   IconSparkle, IconTab, IconShield, IconPalette,
   IconHotkey, IconInfo, IconClose, IconCheck,
@@ -227,30 +229,258 @@ function PrivacySection({ s, update }: { s: KitsuneSettings; update: U }) {
 }
 
 function AppearanceSection({ s, update }: { s: KitsuneSettings; update: U }) {
+  const a = s.appearance ?? DEFAULT_APPEARANCE
+  const updateA = (patch: Partial<AppearanceSettings>) => {
+    update('appearance', { ...a, ...patch })
+  }
+
+  const THEMES: Array<{ id: ThemeBase; label: string; icon: React.ReactNode; dark: boolean }> = [
+    { id: 'dark',     label: 'Dark',     icon: <IconMoon size={14} />,    dark: true  },
+    { id: 'light',    label: 'Light',    icon: <IconSun size={14} />,     dark: false },
+    { id: 'system',   label: 'System',   icon: <IconMonitor size={14} />, dark: true  },
+    { id: 'midnight', label: 'Midnight', icon: <IconMoon size={14} />,    dark: true  },
+    { id: 'forest',   label: 'Forest',   icon: <IconMoon size={14} />,    dark: true  },
+    { id: 'volcano',  label: 'Volcano',  icon: <IconMoon size={14} />,    dark: true  },
+    { id: 'ocean',    label: 'Ocean',    icon: <IconMoon size={14} />,    dark: true  },
+    { id: 'dusk',     label: 'Dusk',     icon: <IconMoon size={14} />,    dark: true  },
+  ]
+
+  const ACCENTS: Array<{ id: AccentPreset; color: string; label: string }> = [
+    { id: 'fox',     color: '#ff6b35', label: 'Fox'     },
+    { id: 'violet',  color: '#8b5cf6', label: 'Violet'  },
+    { id: 'cyan',    color: '#06b6d4', label: 'Cyan'    },
+    { id: 'rose',    color: '#f43f5e', label: 'Rose'    },
+    { id: 'emerald', color: '#10b981', label: 'Emerald' },
+    { id: 'amber',   color: '#f59e0b', label: 'Amber'   },
+    { id: 'indigo',  color: '#6366f1', label: 'Indigo'  },
+    { id: 'pink',    color: '#ec4899', label: 'Pink'    },
+    { id: 'custom',  color: a.accentCustom, label: 'Custom' },
+  ]
+
+  const BG_OPTIONS: Array<{ id: BackgroundStyle; label: string; icon: React.ReactNode }> = [
+    { id: 'plain',            label: 'Plain',          icon: <div style={{width:20,height:14,background:'var(--k-bg)',borderRadius:3,border:'1px solid var(--k-border)'}} /> },
+    { id: 'gradient-linear',  label: 'Linear',         icon: <IconGradientLinear size={16} /> },
+    { id: 'gradient-mesh',    label: 'Mesh',           icon: <IconMesh size={16} /> },
+    { id: 'gradient-accent',  label: 'Accent Glow',    icon: <IconMesh size={16} /> },
+    { id: 'dots',             label: 'Dots',           icon: <IconDotGrid size={16} /> },
+    { id: 'grid',             label: 'Grid',           icon: <IconLineGrid size={16} /> },
+    { id: 'noise',            label: 'Noise',          icon: <IconNoise size={16} /> },
+  ]
+
+  const TEXTURES: Array<{ id: TextureStyle; label: string; icon: React.ReactNode }> = [
+    { id: 'smooth',       label: 'Smooth',       icon: <div style={{width:28,height:18,background:'var(--k-surface-2)',borderRadius:3}} /> },
+    { id: 'grain-light',  label: 'Light Grain',  icon: <IconGrain size={14} /> },
+    { id: 'grain-medium', label: 'Medium Grain', icon: <IconGrain size={14} /> },
+    { id: 'grain-heavy',  label: 'Heavy Grain',  icon: <IconGrain size={14} /> },
+  ]
+
+  const ANIMS: Array<{ id: AnimationStyle; label: string; desc: string; icon: React.ReactNode }> = [
+    { id: 'none',      label: 'None',      desc: 'Static',                icon: <IconAnimNone size={16} /> },
+    { id: 'bubbles',   label: 'Bubbles',   desc: 'Rising glass orbs',     icon: <IconBubble   size={16} /> },
+    { id: 'aurora',    label: 'Aurora',    desc: 'Northern lights',       icon: <IconAurora   size={16} /> },
+    { id: 'particles', label: 'Particles', desc: 'Connected network',     icon: <IconParticle size={16} /> },
+    { id: 'ripple',    label: 'Ripple',    desc: 'Expanding rings',       icon: <IconRipple   size={16} /> },
+    { id: 'starfield', label: 'Warp',      desc: 'Hyperspace effect',     icon: <IconAurora   size={16} /> },
+    { id: 'lava',      label: 'Lava Lamp', desc: 'Morphing blobs',        icon: <IconBubble   size={16} /> },
+  ]
+
   return (
     <div className={styles.section}>
       <h2 className={styles.sectionTitle}>Appearance</h2>
-      <Row label="Theme" desc="Color scheme for the browser chrome">
-        <Select
-          value={s.theme}
-          options={[
-            { value: 'dark',   label: 'Dark' },
-            { value: 'light',  label: 'Light' },
-            { value: 'system', label: 'Match System' },
-          ]}
-          onChange={v => update('theme', v as any)}
-        />
-      </Row>
-      <Row label="Sidebar Position" desc="Which side the tab sidebar appears on">
-        <Select
-          value={s.sidebarPosition}
-          options={[{ value: 'left', label: 'Left' }, { value: 'right', label: 'Right' }]}
-          onChange={v => update('sidebarPosition', v as any)}
-        />
-      </Row>
+      <p className={styles.sectionDesc}>Live preview — changes apply instantly. Default is Dark + Plain.</p>
+
+      {/* Theme */}
+      <div className={styles.appearGroup}>
+        <div className={styles.appearGroupLabel}>Theme</div>
+        <div className={styles.themeGrid}>
+          {THEMES.map(t => (
+            <button key={t.id}
+              className={`${styles.themeChip} ${a.themeBase === t.id ? styles.themeChipActive : ''}`}
+              onClick={() => updateA({ themeBase: t.id })}>
+              <span className={styles.themeChipIcon}>{t.icon}</span>
+              <span>{t.label}</span>
+              {t.id !== 'dark' && t.id !== 'light' && t.id !== 'system' && (
+                <span className={styles.themeChipDot} style={{ background: {
+                  midnight:'#1a1e30', forest:'#162419', volcano:'#241815',
+                  ocean:'#0c1422', dusk:'#17151e',
+                }[t.id] }} />
+              )}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Accent */}
+      <div className={styles.appearGroup}>
+        <div className={styles.appearGroupLabel}>Accent Color</div>
+        <div className={styles.accentGrid}>
+          {ACCENTS.map(ac => (
+            <button key={ac.id}
+              className={`${styles.accentSwatch} ${a.accentPreset === ac.id ? styles.accentSwatchActive : ''}`}
+              onClick={() => updateA({ accentPreset: ac.id })} title={ac.label}>
+              <div className={styles.accentSwatchColor} style={{
+                background: ac.id === 'custom' ? a.accentCustom : ac.color,
+                boxShadow: a.accentPreset === ac.id ? `0 0 8px ${ac.color}88` : 'none',
+              }} />
+              <span className={styles.accentSwatchLabel}>{ac.label}</span>
+            </button>
+          ))}
+        </div>
+        {a.accentPreset === 'custom' && (
+          <div className={styles.customColorRow}>
+            <input type="color" className={styles.colorPicker} value={a.accentCustom}
+              onChange={e => updateA({ accentCustom: e.target.value })} />
+            <input type="text" className={styles.colorHex} value={a.accentCustom}
+              onChange={e => { if (/^#[0-9a-fA-F]{0,6}$/.test(e.target.value)) updateA({ accentCustom: e.target.value }) }} />
+            <span className={styles.colorPreview} style={{ background: a.accentCustom }} />
+          </div>
+        )}
+      </div>
+
+      {/* Background */}
+      <div className={styles.appearGroup}>
+        <div className={styles.appearGroupLabel}>Background</div>
+        <div className={styles.optionRow}>
+          {BG_OPTIONS.map(bg => (
+            <button key={bg.id}
+              className={`${styles.optionChip} ${a.backgroundStyle === bg.id ? styles.optionChipActive : ''}`}
+              onClick={() => updateA({ backgroundStyle: bg.id })}>
+              <span className={styles.optionChipIcon}>{bg.icon}</span>
+              <span>{bg.label}</span>
+            </button>
+          ))}
+        </div>
+        {(a.backgroundStyle === 'gradient-linear' || a.backgroundStyle === 'gradient-mesh') && (
+          <div className={styles.gradientRow}>
+            <label className={styles.gradientLabel}>From</label>
+            <input type="color" className={styles.colorPickerSm} value={a.backgroundGradientFrom}
+              onChange={e => updateA({ backgroundGradientFrom: e.target.value })} />
+            <input type="text" className={styles.colorHexSm} value={a.backgroundGradientFrom}
+              onChange={e => { if (/^#[0-9a-fA-F]{0,6}$/.test(e.target.value)) updateA({ backgroundGradientFrom: e.target.value }) }} />
+            <div className={styles.gradientArrow}>→</div>
+            <label className={styles.gradientLabel}>To</label>
+            <input type="color" className={styles.colorPickerSm} value={a.backgroundGradientTo}
+              onChange={e => updateA({ backgroundGradientTo: e.target.value })} />
+            <input type="text" className={styles.colorHexSm} value={a.backgroundGradientTo}
+              onChange={e => { if (/^#[0-9a-fA-F]{0,6}$/.test(e.target.value)) updateA({ backgroundGradientTo: e.target.value }) }} />
+          </div>
+        )}
+      </div>
+
+      {/* Texture */}
+      <div className={styles.appearGroup}>
+        <div className={styles.appearGroupLabel}>Surface Texture</div>
+        <div className={styles.optionRow}>
+          {TEXTURES.map(t => (
+            <button key={t.id}
+              className={`${styles.optionChip} ${a.textureStyle === t.id ? styles.optionChipActive : ''}`}
+              onClick={() => updateA({ textureStyle: t.id })}>
+              <span className={styles.optionChipIcon}>{t.icon}</span>
+              <span>{t.label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Animation */}
+      <div className={styles.appearGroup}>
+        <div className={styles.appearGroupLabel}>Background Animation</div>
+        <div className={styles.animGrid}>
+          {ANIMS.map(an => (
+            <button key={an.id}
+              className={`${styles.animCard} ${a.animationStyle === an.id ? styles.animCardActive : ''}`}
+              onClick={() => updateA({ animationStyle: an.id })}>
+              <span className={styles.animCardIcon}>{an.icon}</span>
+              <span className={styles.animCardLabel}>{an.label}</span>
+              <span className={styles.animCardDesc}>{an.desc}</span>
+            </button>
+          ))}
+        </div>
+        {a.animationStyle !== 'none' && (
+          <div className={styles.sliderRow}>
+            <span className={styles.sliderLabel}>Intensity</span>
+            <input type="range" min={10} max={100} value={a.animationIntensity}
+              className={styles.slider}
+              onChange={e => updateA({ animationIntensity: parseInt(e.target.value) })} />
+            <span className={styles.sliderValue}>{a.animationIntensity}%</span>
+          </div>
+        )}
+      </div>
+
+      {/* Shape & Layout */}
+      <div className={styles.appearGroup}>
+        <div className={styles.appearGroupLabel}>Shape & Layout</div>
+
+        <div className={styles.shapeRow}>
+          <span className={styles.shapeLabel}>Corners</span>
+          {(['sharp','rounded','pill'] as const).map(r => (
+            <button key={r}
+              className={`${styles.shapeBtn} ${a.borderRadius === r ? styles.shapeBtnActive : ''}`}
+              onClick={() => updateA({ borderRadius: r })}>
+              <CornerIcon type={r} />
+              <span>{r.charAt(0).toUpperCase() + r.slice(1)}</span>
+            </button>
+          ))}
+        </div>
+
+        <div className={styles.sliderRow}>
+          <span className={styles.sliderLabel}>Sidebar width</span>
+          <input type="range" min={180} max={320} value={a.sidebarWidth} className={styles.slider}
+            onChange={e => updateA({ sidebarWidth: parseInt(e.target.value) })} />
+          <span className={styles.sliderValue}>{a.sidebarWidth}px</span>
+        </div>
+        <div className={styles.sliderRow}>
+          <span className={styles.sliderLabel}>Tab height</span>
+          <input type="range" min={28} max={48} value={a.tabHeight} className={styles.slider}
+            onChange={e => updateA({ tabHeight: parseInt(e.target.value) })} />
+          <span className={styles.sliderValue}>{a.tabHeight}px</span>
+        </div>
+        <div className={styles.sliderRow}>
+          <span className={styles.sliderLabel}>Font scale</span>
+          <input type="range" min={85} max={120} value={Math.round(a.fontScale * 100)} className={styles.slider}
+            onChange={e => updateA({ fontScale: parseInt(e.target.value) / 100 })} />
+          <span className={styles.sliderValue}>{Math.round(a.fontScale * 100)}%</span>
+        </div>
+        <div className={styles.toggleRow}>
+          <span className={styles.sliderLabel}>Sidebar glass blur</span>
+          <button className={`${styles.toggle} ${a.sidebarBlur ? styles.toggleOn : styles.toggleOff}`}
+            onClick={() => updateA({ sidebarBlur: !a.sidebarBlur })} />
+        </div>
+      </div>
+
+      {/* Sidebar position */}
+      <div className={styles.appearGroup}>
+        <div className={styles.appearGroupLabel}>Sidebar Position</div>
+        <div className={styles.themeGrid}>
+          <button className={`${styles.themeChip} ${s.sidebarPosition === 'left' ? styles.themeChipActive : ''}`}
+            onClick={() => update('sidebarPosition', 'left')}>
+            <span className={styles.themeChipIcon}><IconSidebarLeft size={14} /></span>
+            <span>Left</span>
+          </button>
+          <button className={`${styles.themeChip} ${s.sidebarPosition === 'right' ? styles.themeChipActive : ''}`}
+            onClick={() => update('sidebarPosition', 'right')}>
+            <span className={styles.themeChipIcon}><IconSidebarRight size={14} /></span>
+            <span>Right</span>
+          </button>
+        </div>
+      </div>
+
+      <button className={styles.resetAppearance} onClick={() => update('appearance', DEFAULT_APPEARANCE)}>
+        Reset to defaults
+      </button>
     </div>
   )
 }
+
+function CornerIcon({ type }: { type: 'sharp'|'rounded'|'pill' }) {
+  const r = type === 'sharp' ? 1 : type === 'rounded' ? 5 : 12
+  return (
+    <svg width="20" height="16" viewBox="0 0 20 16" fill="none" style={{ marginBottom: 2 }}>
+      <rect x="2" y="1" width="16" height="14" rx={r} stroke="currentColor" strokeWidth="1.5" />
+    </svg>
+  )
+}
+
 
 function HotkeysSection({ s }: { s: KitsuneSettings }) {
   return (

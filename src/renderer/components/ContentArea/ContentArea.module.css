@@ -3,7 +3,7 @@
   flex: 1;
   position: relative;
   overflow: hidden;
-  background: var(--k-bg);
+  background: var(--k-panel-bg);
 }
 .webviewPlaceholder {
   width: 100%;
@@ -18,7 +18,7 @@
   align-items: center;
   justify-content: center;
   gap: 12px;
-  background: var(--k-bg);
+  background: var(--k-panel-bg);
 }
 .foxSpinner {
   font-size: 32px;

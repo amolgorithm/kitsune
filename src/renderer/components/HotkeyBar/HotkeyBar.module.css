@@ -1,7 +1,7 @@
 /* src/renderer/components/HotkeyBar/HotkeyBar.module.css */
 .bar {
   height: var(--k-hotkeybar-h);
-  background: var(--k-bg);
+  background: var(--k-panel-bg);
   border-top: 1px solid var(--k-border);
   padding: 0 12px;
   display: flex;

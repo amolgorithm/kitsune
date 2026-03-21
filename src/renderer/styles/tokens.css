@@ -10,6 +10,8 @@
 
   /* Backgrounds */
   --k-bg:         #0d0f12;
+  --k-panel-bg:      var(--k-bg);      /* overridden semi-transparent when animation active */
+  --k-panel-surface:  var(--k-surface); /* overridden semi-transparent when animation active */
   --k-surface:    #13161c;
   --k-surface-2:  #1a1e27;
   --k-surface-3:  #222737;

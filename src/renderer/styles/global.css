@@ -11,7 +11,7 @@ html, body, #root {
   width: 100%;
   height: 100%;
   overflow: hidden;
-  background: #050608;
+  background: #050608; /* body bg — always opaque */
 }
 
 body {
@@ -29,6 +29,21 @@ body {
   flex-direction: column;
   width: 100%;
   height: 100%;
+  position: relative;
+  isolation: isolate; /* Stacking context: canvas(0) < sidebar(50) < navbar(60) < modal(200) */
+  overflow: hidden;
+  background: transparent; /* Background rendered by ::before so canvas shows through */
+}
+
+/* Background layer — sits behind canvas (z:-1) and all chrome */
+.app::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: var(--k-app-bg, #0d0f12);
+  background-size: var(--k-app-bg-size, auto);
+  pointer-events: none;
 }
 
 /* The titlebar drag region needs to be above everything on Windows */
@@ -93,3 +108,4 @@ button   { background: none; border: none; cursor: pointer; font-family: inherit
 input, textarea { font-family: inherit; color: inherit; }
 a        { color: inherit; text-decoration: none; }
 img      { display: block; }
+

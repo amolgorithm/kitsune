@@ -39,6 +39,7 @@ export function Sidebar() {
   const createTab        = useBrowserStore(s => s.createTab)
   const openSettings     = useBrowserStore(s => s.openSettings)
   const toggleCleave     = useBrowserStore(s => s.toggleCleave)
+  const toggleFileSearch = useBrowserStore(s => s.toggleFileSearch)
   const aiClusterTabs    = useBrowserStore(s => s.aiClusterTabs)
   const createWorkspace  = useBrowserStore(s => s.createWorkspace)
 
@@ -218,7 +219,7 @@ export function Sidebar() {
       <nav className={styles.footer}>
         <FooterItem icon={<IconSettings size={14} />} label="Settings" kbd="⌘," onClick={openSettings} />
         <FooterItem icon={<IconSplitH size={14} />}   label="Cleave"   kbd="⌘\" onClick={toggleCleave} />
-        <FooterItem icon={<IconFile size={14} />}     label="Files"    onClick={() => {}} />
+        <FooterItem icon={<IconFile size={14} />}     label="Files"    onClick={toggleFileSearch} />
         <div className={styles.footerUser}>
           <div className={styles.userAvatar}><IconUser size={12} /></div>
           <div className={styles.lensIndicator}>

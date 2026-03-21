@@ -61,7 +61,7 @@ app.whenReady().then(async () => {
   // Pass tabManager + aiService so workspace IPC can do AI clustering
   registerWorkspaceIPC(ipcMain, workspaceManager, tabManager, aiService, mainWindow)
   registerCleaveIPC(ipcMain, cleaveManager, tabManager, mainWindow)
-  registerSettingsIPC(ipcMain, settings)
+  registerSettingsIPC(ipcMain, settings, mainWindow)
 
   ipcMain.handle('window:minimize', () => mainWindow?.minimize())
   ipcMain.handle('window:maximize', () => {

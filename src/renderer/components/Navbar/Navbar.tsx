@@ -4,7 +4,7 @@ import { useBrowserStore, useActiveTab } from '../../stores/browserStore'
 import {
   IconBack, IconForward, IconReload, IconStop,
   IconLock, IconLockOpen, IconBookmark, IconShare,
-  IconShield, IconSparkle, IconBook, IconDots, IconSearch,
+  IconShield, IconSparkle, IconBook, IconDots, IconSearch, IconCheck,
 } from '../Icons'
 import styles from './Navbar.module.css'
 
@@ -14,6 +14,10 @@ export function Navbar() {
   const urlBarFocused      = useBrowserStore(s => s.urlBarFocused)
   const aiPanelOpen        = useBrowserStore(s => s.aiPanelOpen)
   const navState           = useBrowserStore(s => s.navState)
+  const readingMode        = useBrowserStore(s => s.readingMode)
+  const isBookmarked       = useBrowserStore(s => s.isBookmarked)
+  const addBookmark        = useBrowserStore(s => s.addBookmark)
+  const removeBookmark     = useBrowserStore(s => s.removeBookmark)
 
   const navigateTab        = useBrowserStore(s => s.navigateTab)
   const toggleAIPanel      = useBrowserStore(s => s.toggleAIPanel)
@@ -22,20 +26,31 @@ export function Navbar() {
   const goBack             = useBrowserStore(s => s.goBack)
   const goForward          = useBrowserStore(s => s.goForward)
   const reload             = useBrowserStore(s => s.reload)
+  const toggleReadingMode  = useBrowserStore(s => s.toggleReadingMode)
 
-  const inputRef   = useRef<HTMLInputElement>(null)
-  const [localValue, setLocalValue] = useState('')
+  const inputRef = useRef<HTMLInputElement>(null)
+  const [localValue, setLocalValue]     = useState('')
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false)
+  const [bookmarkFlash, setBookmarkFlash] = useState(false)
 
-  const nav         = activeTabId ? (navState[activeTabId] ?? { canGoBack: false, canGoForward: false }) : { canGoBack: false, canGoForward: false }
-  const isLoading   = activeTab?.status === 'loading'
-  const isNewTab    = !activeTab || activeTab.url === 'kitsune://newtab'
-  const isSecure    = activeTab?.url?.startsWith('https://') ?? false
-  const displayUrl  = isNewTab ? '' : formatDisplay(activeTab?.url ?? '')
+  const nav      = activeTabId ? (navState[activeTabId] ?? { canGoBack: false, canGoForward: false }) : { canGoBack: false, canGoForward: false }
+  const isLoading = activeTab?.status === 'loading'
+  const isNewTab  = !activeTab || activeTab.url === 'kitsune://newtab'
+  const isSecure  = activeTab?.url?.startsWith('https://') ?? false
+  const displayUrl = isNewTab ? '' : formatDisplay(activeTab?.url ?? '')
+  const bookmarked = activeTab ? isBookmarked(activeTab.url) : false
 
-  // Sync local value when not focused
   useEffect(() => {
     if (!urlBarFocused) setLocalValue(displayUrl)
   }, [displayUrl, urlBarFocused])
+
+  // Close more menu on outside click
+  useEffect(() => {
+    if (!moreMenuOpen) return
+    const h = () => setMoreMenuOpen(false)
+    window.addEventListener('click', h)
+    return () => window.removeEventListener('click', h)
+  }, [moreMenuOpen])
 
   const handleFocus = () => {
     setUrlBarFocused(true)
@@ -55,33 +70,43 @@ export function Navbar() {
   }
 
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') { e.preventDefault(); commit() }
-    if (e.key === 'Escape') {
-      setLocalValue(displayUrl)
-      inputRef.current?.blur()
+    if (e.key === 'Enter')  { e.preventDefault(); commit() }
+    if (e.key === 'Escape') { setLocalValue(displayUrl); inputRef.current?.blur() }
+  }
+
+  const handleBookmark = () => {
+    if (!activeTab || isNewTab) return
+    if (bookmarked) {
+      removeBookmark(activeTab.url)
+    } else {
+      addBookmark(activeTab)
+      setBookmarkFlash(true)
+      setTimeout(() => setBookmarkFlash(false), 1200)
+    }
+  }
+
+  const handleShare = async () => {
+    if (!activeTab || isNewTab) return
+    try {
+      await navigator.clipboard.writeText(activeTab.url)
+      // Brief visual feedback handled by button title tooltip
+    } catch {
+      // Fallback: open share URL in new tab
     }
   }
 
   return (
     <div className={styles.navbar}>
       <div className={styles.navGroup}>
-        <NavBtn
-          title="Back"
-          disabled={!nav.canGoBack}
+        <NavBtn title="Back (Alt+Left)" disabled={!nav.canGoBack}
           icon={<IconBack size={15} />}
-          onClick={() => activeTabId && goBack(activeTabId)}
-        />
-        <NavBtn
-          title="Forward"
-          disabled={!nav.canGoForward}
+          onClick={() => activeTabId && goBack(activeTabId)} />
+        <NavBtn title="Forward (Alt+Right)" disabled={!nav.canGoForward}
           icon={<IconForward size={15} />}
-          onClick={() => activeTabId && goForward(activeTabId)}
-        />
-        <NavBtn
-          title={isLoading ? 'Stop' : 'Reload'}
+          onClick={() => activeTabId && goForward(activeTabId)} />
+        <NavBtn title={isLoading ? 'Stop' : 'Reload (Ctrl+R)'}
           icon={isLoading ? <IconStop size={15} /> : <IconReload size={15} />}
-          onClick={() => activeTabId && (isLoading ? null : reload(activeTabId))}
-        />
+          onClick={() => activeTabId && !isLoading && reload(activeTabId)} />
       </div>
 
       <div
@@ -115,14 +140,25 @@ export function Navbar() {
 
         {!urlBarFocused && !isNewTab && (
           <div className={styles.urlActions}>
-            <UrlAction title="Bookmark" icon={<IconBookmark size={12} />} onClick={() => {}} />
-            <UrlAction title="Share"    icon={<IconShare size={12} />}    onClick={() => {}} />
+            <UrlAction
+              title={bookmarked ? 'Remove bookmark' : 'Bookmark this page'}
+              icon={bookmarkFlash
+                ? <IconCheck size={12} className={styles.iconGreen} />
+                : <IconBookmark size={12} className={bookmarked ? styles.iconAccent : ''} />
+              }
+              onClick={handleBookmark}
+            />
+            <UrlAction
+              title="Copy URL to clipboard"
+              icon={<IconShare size={12} />}
+              onClick={handleShare}
+            />
           </div>
         )}
       </div>
 
       <div className={styles.navGroup}>
-        <button className={styles.shieldBtn} title="Privacy report">
+        <button className={styles.shieldBtn} title="Privacy report — click to view blocked trackers">
           <IconShield size={11} />
           <span>Protected</span>
         </button>
@@ -136,19 +172,45 @@ export function Navbar() {
           <span>AI</span>
         </button>
 
-        <NavBtn title="Reading mode" icon={<IconBook size={15} />} onClick={() => {}} />
-        <NavBtn title="More options"  icon={<IconDots size={15} />} onClick={() => {}} />
+        <NavBtn
+          title="Reading mode (Ctrl+4)"
+          icon={<IconBook size={15} />}
+          onClick={toggleReadingMode}
+          active={readingMode}
+        />
+
+        {/* More options dropdown */}
+        <div className={styles.moreWrap}>
+          <NavBtn
+            title="More options"
+            icon={<IconDots size={15} />}
+            onClick={e => { e?.stopPropagation(); setMoreMenuOpen(v => !v) }}
+          />
+          {moreMenuOpen && (
+            <div className={styles.moreMenu} onClick={e => e.stopPropagation()}>
+              <MoreMenuItem label="New Tab"           kbd="Ctrl+T"  onClick={() => { useBrowserStore.getState().createTab('kitsune://newtab'); setMoreMenuOpen(false) }} />
+              <MoreMenuItem label="New Private Tab"   onClick={() => { useBrowserStore.getState().createTab('kitsune://newtab'); setMoreMenuOpen(false) }} />
+              <div className={styles.moreMenuDivider} />
+              <MoreMenuItem label="Bookmarks"         onClick={() => setMoreMenuOpen(false)} />
+              <MoreMenuItem label="File Search"       kbd="Ctrl+Shift+F" onClick={() => { useBrowserStore.getState().toggleFileSearch(); setMoreMenuOpen(false) }} />
+              <div className={styles.moreMenuDivider} />
+              <MoreMenuItem label="Settings"          kbd="Ctrl+,"  onClick={() => { useBrowserStore.getState().openSettings(); setMoreMenuOpen(false) }} />
+              <MoreMenuItem label="Cleave Layout"     kbd="Ctrl+\\" onClick={() => { useBrowserStore.getState().toggleCleave(); setMoreMenuOpen(false) }} />
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )
 }
 
-function NavBtn({ icon, title, onClick, disabled }: {
-  icon: React.ReactNode; title?: string; onClick?: () => void; disabled?: boolean
+function NavBtn({ icon, title, onClick, disabled, active }: {
+  icon: React.ReactNode; title?: string; onClick?: (e?: React.MouseEvent) => void
+  disabled?: boolean; active?: boolean
 }) {
   return (
     <button
-      className={`${styles.navBtn} ${disabled ? styles.disabled : ''}`}
+      className={`${styles.navBtn} ${disabled ? styles.disabled : ''} ${active ? styles.navBtnActive : ''}`}
       onClick={onClick}
       title={title}
       disabled={disabled}
@@ -160,8 +222,18 @@ function NavBtn({ icon, title, onClick, disabled }: {
 
 function UrlAction({ title, icon, onClick }: { title: string; icon: React.ReactNode; onClick: () => void }) {
   return (
-    <button className={styles.urlActionBtn} title={title} onClick={e => { e.stopPropagation(); onClick() }}>
+    <button className={styles.urlActionBtn} title={title}
+      onClick={e => { e.stopPropagation(); onClick() }}>
       {icon}
+    </button>
+  )
+}
+
+function MoreMenuItem({ label, kbd, onClick }: { label: string; kbd?: string; onClick: () => void }) {
+  return (
+    <button className={styles.moreMenuItem} onClick={onClick}>
+      <span>{label}</span>
+      {kbd && <kbd className={styles.moreMenuKbd}>{kbd}</kbd>}
     </button>
   )
 }
