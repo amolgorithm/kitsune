@@ -3,7 +3,10 @@
   "version": "0.9.4-beta",
   "description": "Kitsune — AI-native browser built on Electron",
   "main": "dist-electron/main/index.js",
-  "author": "Kitsune Contributors",
+  "author": {
+    "name": "Kitsune Contributors (Amol Sriprasadh)",
+    "email": "amol.unique@gmail.com"
+  },
   "license": "MIT",
   "scripts": {
     "dev": "vite",
