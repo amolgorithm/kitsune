@@ -18,6 +18,10 @@ export const TabIPC = {
   wake:            (id: string) => ipc.invoke<void>('tab:wake', id),
   list:            (workspaceId?: string) => ipc.invoke<KitsuneTab[]>('tab:list', workspaceId),
   setAIPanelWidth: (w: number) => ipc.invoke<void>('tab:set-ai-panel-width', w),
+  // Shrinks BrowserView from the bottom to prevent the native Chromium
+  // layer from overlapping the inline REPL bar (CSS z-index has no
+  // effect on native BrowserView layers).
+  setReplHeight:   (h: number) => ipc.invoke<void>('tab:set-repl-height' as any, h),
   setSidebarWidth: (w: number) => ipc.invoke<number>('tab:set-sidebar-width' as any, w),
   getSidebarWidth: ()          => ipc.invoke<number>('tab:get-sidebar-width' as any),
   goBack:          (id: string) => ipc.invoke<void>('tab:go-back', id),

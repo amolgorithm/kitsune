@@ -54,12 +54,12 @@ export default function App() {
     if (meta && e.key === 'k')                    { e.preventDefault(); openCommandPalette() }
     if (meta && e.key === '\\')                   { e.preventDefault(); toggleCleave() }
     if (meta && e.key === ',')                    { e.preventDefault(); openSettings() }
-    if (meta && e.shiftKey && e.key === 'a')      { e.preventDefault(); toggleAIPanel() }
-    if (meta && e.shiftKey && e.key === 'f')      { e.preventDefault(); toggleFileSearch() }
+    if (meta && e.shiftKey && e.key === 'A')      { e.preventDefault(); toggleAIPanel() }
+    if (meta && e.shiftKey && e.key === 'F')      { e.preventDefault(); toggleFileSearch() }
     if (meta && e.key === 't')                    { e.preventDefault(); createTab('kitsune://newtab') }
     if (meta && e.key === 'w' && activeTabId)     { e.preventDefault(); closeTab(activeTabId) }
     if (meta && e.key === '`')                    { e.preventDefault(); toggleREPL() }
-    if (meta && e.shiftKey && e.key === ';')      { e.preventDefault(); toggleREPL() }
+    if (meta && e.shiftKey && e.key === ':')      { e.preventDefault(); toggleREPL() }
     if (meta && e.key === '9')                    { e.preventDefault(); toggleNineTails() }
     if (e.ctrlKey && e.key === '1')               { e.preventDefault(); setActiveLens('default') }
     if (e.ctrlKey && e.key === '2')               { e.preventDefault(); setActiveLens('research') }

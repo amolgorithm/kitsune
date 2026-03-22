@@ -26,10 +26,11 @@ const BOTTOM_H      = 24 + 28
 const MIN_SIDEBAR_W = 52
 
 export class TabManager {
-  public views         = new Map<string, BrowserView>()
+  public  views         = new Map<string, BrowserView>()
   private tabs          = new Map<string, KitsuneTab>()
-  private activeTabId: string | null = null
+  private activeTabId:  string | null = null
   private aiPanelWidth  = 0
+  private replHeight    = 0          // px reserved at bottom for inline REPL
   private viewHidden    = false
   private currentPanes: PaneRegion[] = []
   private nineTails: NineTailsEngine | null = null
@@ -47,7 +48,6 @@ export class TabManager {
     window.on('unmaximize', () => this.repositionAll())
   }
 
-  // Called from index.ts after NineTailsEngine is created
   setNineTailsEngine(engine: NineTailsEngine): void {
     this.nineTails = engine
   }
@@ -62,14 +62,23 @@ export class TabManager {
 
   getSidebarWidth(): number { return SIDEBAR_W }
 
+  // ─── REPL height ────────────────────────────────────────────────
+  // CSS z-index cannot beat a native BrowserView (OS-level window).
+  // The only fix is shrinking the BrowserView bounds so it physically
+  // stops where the REPL bar begins. Called by tab:set-repl-height IPC.
+
+  setReplHeight(h: number): void {
+    this.replHeight = Math.max(0, h)
+    this.repositionAll()
+  }
+
   // ─── Tab lifecycle ──────────────────────────────────────────────
 
   async createTab(opts: CreateTabOptions): Promise<KitsuneTab> {
-    const id          = randomUUID()
-    let workspaceId   = opts.workspaceId ?? this.workspaceManager.activeId
-    const now         = Date.now()
+    const id        = randomUUID()
+    let workspaceId = opts.workspaceId ?? this.workspaceManager.activeId
+    const now       = Date.now()
 
-    // Courier tail — apply URL routing rules before the tab is placed
     let lensId: string | undefined
     if (this.nineTails && opts.url !== 'kitsune://newtab') {
       const routing = this.nineTails.routeTab(id, opts.url)
@@ -96,7 +105,6 @@ export class TabManager {
       view.webContents.loadURL(opts.url)
     }
 
-    // Push lens switch to renderer if Courier routed to a different lens
     if (lensId) {
       this.window.webContents.send('command:ui', { action: 'lens.set', id: lensId })
     }
@@ -150,7 +158,7 @@ export class TabManager {
     if (this.activeTabId === id) {
       this.activeTabId = null
       const remaining = [...this.tabs.keys()]
-      if (remaining.length > 0) await this.activateTab(remaining[remaining.length - 1])
+      if (remaining.length > 0) await this.activateTab(remaining[remaining.length - 1]!)
       else await this.createTab({ url: 'kitsune://newtab' })
     }
   }
@@ -189,7 +197,9 @@ export class TabManager {
     if (!view) return
 
     try {
-      const mem = await view.webContents.executeJavaScript('process.getProcessMemoryInfo ? process.getProcessMemoryInfo() : {privateBytes:0}').catch(() => ({ privateBytes: 0 })) as any
+      const mem = await view.webContents
+        .executeJavaScript('process.getProcessMemoryInfo ? process.getProcessMemoryInfo() : {privateBytes:0}')
+        .catch(() => ({ privateBytes: 0 })) as any
       tab.memoryBytes = (mem.privateBytes ?? 0) * 1024
     } catch { /* already destroyed */ }
 
@@ -266,7 +276,7 @@ export class TabManager {
 
     const [w, h]    = this.window.getContentSize()
     const contentW  = w - SIDEBAR_W - this.aiPanelWidth
-    const contentH  = h - CHROME_TOP - BOTTOM_H
+    const contentH  = h - CHROME_TOP - Math.max(BOTTOM_H, this.replHeight)
     const paneCount = panes.filter(p => !p.isAIPane).length
     const paneWidth = Math.floor(contentW / paneCount)
 
@@ -306,8 +316,8 @@ export class TabManager {
     return workspaceId ? all.filter(t => t.workspaceId === workspaceId) : all
   }
 
-  getTab(id: string):     KitsuneTab | undefined { return this.tabs.get(id) }
-  getActiveTabId():       string | null           { return this.activeTabId }
+  getTab(id: string):   KitsuneTab | undefined { return this.tabs.get(id) }
+  getActiveTabId():     string | null           { return this.activeTabId }
 
   async getPageText(id: string, maxChars = 8000): Promise<string> {
     const view = this.views.get(id)
@@ -336,15 +346,23 @@ export class TabManager {
 
   private singlePaneBounds() {
     const [w, h] = this.window.getContentSize()
+    // When the REPL is open it occupies the bottom of the window, replacing
+    // the normal bottom chrome. Subtract whichever is larger so the
+    // BrowserView bottom edge always sits exactly at the top of whatever
+    // UI element occupies the bottom — REPL or status bar.
+    const bottomReserved = Math.max(BOTTOM_H, this.replHeight)
     return {
       x:      SIDEBAR_W,
       y:      CHROME_TOP,
       width:  Math.max(0, w - SIDEBAR_W - this.aiPanelWidth),
-      height: Math.max(0, h - CHROME_TOP - BOTTOM_H),
+      height: Math.max(0, h - CHROME_TOP - bottomReserved),
     }
   }
 
-  private repositionView(view: BrowserView, bounds: { x: number; y: number; width: number; height: number }): void {
+  private repositionView(
+    view: BrowserView,
+    bounds: { x: number; y: number; width: number; height: number },
+  ): void {
     view.setBounds({
       x:      Math.round(bounds.x),
       y:      Math.round(bounds.y),
@@ -378,7 +396,12 @@ export class TabManager {
       const title = wc.getTitle() || url
       this.updateTabMeta(id, { status: 'ready', url, title, lastAccessedAt: Date.now() })
 
-      // Harvest tail — index page content after load settles
+      // Recover from any stuck viewHidden state when the active tab loads
+      if (id === this.activeTabId && this.viewHidden) {
+        this.viewHidden = false
+        this.repositionAll()
+      }
+
       if (this.nineTails && url && !url.startsWith('kitsune://')) {
         setTimeout(async () => {
           try {
@@ -395,7 +418,6 @@ export class TabManager {
       this.window.webContents.send('tab:nav-state', {
         id, canGoBack: wc.canGoBack(), canGoForward: wc.canGoForward(),
       })
-      // Relay tail — fire url_visit trigger
       if (this.nineTails) {
         this.nineTails.fireRelay('url_visit', { tabId: id, url }).catch(() => {})
       }

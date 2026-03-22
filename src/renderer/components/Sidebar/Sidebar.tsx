@@ -321,7 +321,7 @@ export function Sidebar() {
           <>
             <FooterItem icon={<IconSettings size={14} />} label="Settings"   kbd="⌘,"  onClick={openSettings} />
             <FooterItem icon={<IconSplitH size={14} />}   label="Cleave"     kbd="⌘\"  onClick={toggleCleave} />
-            <FooterItem icon={<IconFile size={14} />}     label="Files"                onClick={toggleFileSearch} />
+            <FooterItem icon={<IconFile size={14} />}     label="Files"      kbd="⌘⇧F"  onClick={toggleFileSearch} />
             <FooterItem icon={<span style={{ fontFamily: 'serif', fontSize: 13, lineHeight: 1 }}>九</span>} label="Nine Tails" kbd="⌘9" onClick={toggleNineTails} />
             <div className={styles.footerUser}>
               <div className={styles.userAvatar}><IconUser size={12} /></div>

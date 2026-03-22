@@ -7,7 +7,7 @@ import type {
 } from '../../shared/types'
 import { DEFAULT_SETTINGS } from '../../shared/types'
 import { LENS_IDS } from '../../shared/constants'
-import { TabIPC, WorkspaceIPC, SettingsIPC, Push, CleaveIPC, NineTailsIPC } from '../lib/ipc'
+import { TabIPC, WorkspaceIPC, SettingsIPC, Push, CleaveIPC } from '../lib/ipc'
 
 const BUILT_IN_LENSES: LensProfile[] = [
   { id: LENS_IDS.DEFAULT,  name: 'Default',  icon: 'globe',    description: 'Standard browsing',             cssClass: 'lens-default',  forceReaderMode: false, defaultAITab: 'summary',  hotkey: 'ctrl+1', builtIn: true },
@@ -19,13 +19,12 @@ const BUILT_IN_LENSES: LensProfile[] = [
 
 interface NavState { canGoBack: boolean; canGoForward: boolean }
 
-// Debounce helper for IPC calls during drag
 let sidebarIpcTimer: ReturnType<typeof setTimeout> | null = null
 function debouncedSetSidebarWidth(w: number) {
   if (sidebarIpcTimer) clearTimeout(sidebarIpcTimer)
   sidebarIpcTimer = setTimeout(() => {
     TabIPC.setSidebarWidth(w).catch(console.error)
-  }, 16) // ~1 frame debounce — fast enough, not flooding
+  }, 16)
 }
 
 interface BrowserState {
@@ -60,7 +59,6 @@ interface BrowserState {
   urlBarFocused: boolean
   urlBarValue: string
 
-  // Tab actions
   createTab:         (url: string) => Promise<void>
   closeTab:          (id: string) => Promise<void>
   activateTab:       (id: string) => Promise<void>
@@ -73,43 +71,35 @@ interface BrowserState {
   updateTabFromPush: (tab: KitsuneTab) => void
   removeTabFromPush: (id: string) => void
 
-  // Sidebar resize
   setSidebarWidth: (w: number) => void
 
-  // Bookmarks
   addBookmark:    (tab: KitsuneTab) => void
   removeBookmark: (url: string) => void
   isBookmarked:   (url: string) => boolean
 
-  // Groups
   createGroup:       (params: Partial<TabGroup> & { workspaceId: string }) => Promise<void>
   deleteGroup:       (id: string) => Promise<void>
   aiClusterTabs:     () => Promise<void>
   setGroupsFromPush: (groups: TabGroup[]) => void
 
-  // Workspace
   switchWorkspace: (id: string) => Promise<void>
   createWorkspace: (name: string, color: string) => Promise<void>
 
-  // AI
   toggleAIPanel:   () => void
   setAIPanelTab:   (tab: AIPanelTab) => void
   sendChatMessage: (content: string) => Promise<void>
   cacheAISummary:  (tabId: string, summary: AISummary) => void
 
-  // Lens
   setActiveLens: (id: string) => void
-
-  // Reading mode
   toggleReadingMode: () => void
 
-  // UI
   openCommandPalette:  () => void
   closeCommandPalette: () => void
   openSettings:        () => void
   closeSettings:       () => void
   toggleCleave:        () => void
   toggleFileSearch:    () => void
+  // REPL — no modal hide/show, stays inline alongside the webpage
   toggleREPL:          () => void
   openREPL:            () => void
   closeREPL:           () => void
@@ -119,7 +109,6 @@ interface BrowserState {
   setUrlBarFocused:    (v: boolean) => void
   setUrlBarValue:      (v: string) => void
 
-  // Settings side effects
   applySettingsToDOM: () => void
   updateSettings:     (patch: Partial<KitsuneSettings>) => Promise<void>
 
@@ -143,10 +132,8 @@ export const useBrowserStore = create<BrowserState>()(
 
     // ── Sidebar resize ─────────────────────────────────────────
     setSidebarWidth: (w) => {
-      // Update CSS custom property immediately for instant visual feedback
       document.documentElement.style.setProperty('--k-sidebar-w', `${w}px`)
       set(s => { s.sidebarWidth = w })
-      // Debounce the IPC call to avoid flooding during drag
       debouncedSetSidebarWidth(w)
     },
 
@@ -201,11 +188,8 @@ export const useBrowserStore = create<BrowserState>()(
         if (s.bookmarks.some(b => b.url === tab.url)) return
         s.bookmarks.push({
           id: crypto.randomUUID(),
-          url: tab.url,
-          title: tab.title,
-          favicon: tab.favicon,
-          tags: [],
-          addedAt: Date.now(),
+          url: tab.url, title: tab.title, favicon: tab.favicon,
+          tags: [], addedAt: Date.now(),
         })
       })
     },
@@ -295,10 +279,9 @@ export const useBrowserStore = create<BrowserState>()(
       SettingsIPC.set({ activeLensId: id }).catch(console.error)
     },
 
-    // ── Reading mode ────────────────────────────────────────────
     toggleReadingMode: () => set(s => { s.readingMode = !s.readingMode }),
 
-    // ── UI ──────────────────────────────────────────────────────
+    // ── UI modals — these hide the BrowserView while open ────────
     openCommandPalette:  () => { TabIPC.modalOpen(); set(s => { s.commandPaletteOpen = true }) },
     closeCommandPalette: () => { TabIPC.modalClose(); set(s => { s.commandPaletteOpen = false }) },
     openSettings:        () => { TabIPC.modalOpen(); set(s => { s.settingsOpen = true }) },
@@ -313,13 +296,16 @@ export const useBrowserStore = create<BrowserState>()(
       if (next) TabIPC.modalOpen(); else TabIPC.modalClose()
       set(s => { s.fileSearchOpen = next })
     },
-    toggleREPL: () => {
-      const next = !get().replOpen
-      if (next) TabIPC.modalOpen(); else TabIPC.modalClose()
-      set(s => { s.replOpen = next })
-    },
-    openREPL:  () => { TabIPC.modalOpen();  set(s => { s.replOpen = true  }) },
-    closeREPL: () => { TabIPC.modalClose(); set(s => { s.replOpen = false }) },
+
+    // ── REPL — inline bottom bar, never hides the BrowserView ────
+    // Do NOT call TabIPC.modalOpen/Close here. The REPL overlays the
+    // bottom of the screen and is designed to work alongside the
+    // live webpage — hiding the BrowserView would defeat the purpose.
+    toggleREPL: () => set(s => { s.replOpen = !s.replOpen }),
+    openREPL:   () => set(s => { s.replOpen = true }),
+    closeREPL:  () => set(s => { s.replOpen = false }),
+
+    // ── Nine Tails — full modal, does hide BrowserView ───────────
     toggleNineTails: () => {
       const next = !get().nineTailsOpen
       if (next) TabIPC.modalOpen(); else TabIPC.modalClose()
@@ -327,6 +313,7 @@ export const useBrowserStore = create<BrowserState>()(
     },
     openNineTails:  () => { TabIPC.modalOpen();  set(s => { s.nineTailsOpen = true  }) },
     closeNineTails: () => { TabIPC.modalClose(); set(s => { s.nineTailsOpen = false }) },
+
     setUrlBarFocused: (v) => set(s => { s.urlBarFocused = v }),
     setUrlBarValue:   (v) => set(s => { s.urlBarValue = v }),
 
@@ -373,7 +360,6 @@ export const useBrowserStore = create<BrowserState>()(
           TabIPC.getSidebarWidth(),
         ])
 
-        // Apply persisted sidebar width to CSS immediately
         const sw = persistedSidebarW ?? 240
         document.documentElement.style.setProperty('--k-sidebar-w', `${sw}px`)
 
@@ -395,6 +381,7 @@ export const useBrowserStore = create<BrowserState>()(
         return
       }
 
+      // ── Push subscriptions ─────────────────────────────────────
       Push.onTabUpdate(tab => get().updateTabFromPush(tab))
       Push.onTabClose(id  => get().removeTabFromPush(id))
       Push.onTabActivate(id => set(s => {
@@ -414,37 +401,28 @@ export const useBrowserStore = create<BrowserState>()(
       Push.onLayoutUpdate(layout => set(s => { s.layout = layout }))
       Push.onGroupsUpdate(groups => get().setGroupsFromPush(groups))
 
-      // Main pushes canonical sidebar width (clamped) back after setSidebarWidth
       Push.onSidebarWidthUpdate(w => {
         document.documentElement.style.setProperty('--k-sidebar-w', `${w}px`)
         set(s => { s.sidebarWidth = w })
       })
 
-      // Nine Tails — Focus window active/inactive
       Push.onNineTailsFocusWindow(({ active }) => {
-        // Could drive a global 'focus mode active' indicator in the UI here
         console.log('[NineTails] focus window', active ? 'started' : 'ended')
       })
 
-      // Nine Tails — system notifications that need in-app handling
       Push.onNineTailsNotification(({ title, body, url }) => {
         console.log('[NineTails notification]', title, body, url)
-        // Future: push into a notification tray component
       })
 
-      // Settings pushed from main when changed
       window.kitsune.on('settings:update' as any, (updated: unknown) => {
         set(s => { s.settings = updated as KitsuneSettings })
         get().applySettingsToDOM()
       })
-      
-      // ── Command engine UI actions pushed from main ─────────────
+
       window.kitsune.on('command:ui' as any, (action: any) => {
         const store = get()
         switch (action.action) {
-          case 'ai.panel.toggle':
-            store.toggleAIPanel()
-            break
+          case 'ai.panel.toggle':  store.toggleAIPanel(); break
           case 'ai.panel.open':
             set(s => { s.aiPanelOpen = true })
             TabIPC.setAIPanelWidth(340).catch(console.error)
@@ -453,38 +431,23 @@ export const useBrowserStore = create<BrowserState>()(
             set(s => { s.aiPanelOpen = false })
             TabIPC.setAIPanelWidth(0).catch(console.error)
             break
-          case 'ai.panel.tab':
-            set(s => { s.aiPanelTab = action.tab })
-            break
-          case 'lens.set':
-            set(s => { s.activeLensId = action.id })
-            break
-          case 'ui.commandPalette':
-            store.openCommandPalette()
-            break
-          case 'ui.settings':
-            store.openSettings()
-            break
-          case 'ui.fileSearch':
-            store.toggleFileSearch()
-            break
-          case 'ui.cleave':
-            store.toggleCleave()
-            break
-          case 'ui.sidebar.toggle':
-            set(s => { s.sidebarHidden = !s.sidebarHidden })
-            break
-          case 'ui.readingMode':
-            store.toggleReadingMode()
-            break
-          case 'ui.focusUrlBar':
-            set(s => { s.urlBarFocused = true })
-            break
-          case 'workspace.switched':
-            set(s => { s.activeWorkspaceId = action.id })
-            break
+          case 'ai.panel.tab':    set(s => { s.aiPanelTab = action.tab }); break
+          case 'lens.set':        set(s => { s.activeLensId = action.id }); break
+          case 'ui.commandPalette': store.openCommandPalette(); break
+          case 'ui.settings':       store.openSettings(); break
+          case 'ui.fileSearch':     store.toggleFileSearch(); break
+          case 'ui.cleave':         store.toggleCleave(); break
+          case 'ui.sidebar.toggle': set(s => { s.sidebarHidden = !s.sidebarHidden }); break
+          case 'ui.readingMode':    store.toggleReadingMode(); break
+          case 'ui.focusUrlBar':    set(s => { s.urlBarFocused = true }); break
+          case 'workspace.switched': set(s => { s.activeWorkspaceId = action.id }); break
         }
       })
+
+      // Always ensure the BrowserView is visible on boot.
+      // Recovers from any prior session that called modalOpen but
+      // never called modalClose (crash, force-quit, etc.).
+      TabIPC.modalClose().catch(console.error)
     },
   }))
 )
