@@ -1,0 +1,353 @@
+/* src/renderer/components/NineTails/NineTails.module.css */
+
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Sora:wght@300;400;500;600;700&display=swap');
+
+/* ── Root ──────────────────────────────────────────────────────── */
+.root {
+  font-family: 'Sora', var(--k-font-ui);
+  background: #080a0f;
+  color: #e8eaf0;
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Ambient blobs ─────────────────────────────────────────────── */
+.blob1 {
+  position: absolute;
+  width: 700px; height: 700px; border-radius: 50%;
+  right: -15%; top: -20%; pointer-events: none; z-index: 0;
+}
+.blob2 {
+  position: absolute;
+  width: 400px; height: 400px; border-radius: 50%;
+  left: -5%; bottom: -10%; pointer-events: none; z-index: 0;
+  background: radial-gradient(circle, rgba(76,201,240,0.05) 0%, transparent 65%);
+}
+
+/* ── Layout ────────────────────────────────────────────────────── */
+.layout {
+  position: relative; z-index: 1;
+  display: flex; flex: 1; min-height: 0;
+}
+
+/* ── Left panel ────────────────────────────────────────────────── */
+.left {
+  width: 360px; flex-shrink: 0;
+  border-right: 1px solid rgba(255,255,255,0.05);
+  display: flex; flex-direction: column;
+  background: rgba(8,10,15,0.85);
+  backdrop-filter: blur(24px);
+}
+
+.header { padding: 20px 20px 0; flex-shrink: 0; }
+
+.headerLogo {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 3px;
+}
+.logoMark {
+  width: 30px; height: 30px; border-radius: 7px; flex-shrink: 0;
+  background: linear-gradient(135deg, #ff6b35, #a594ff);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; font-weight: 700;
+}
+.logoText {
+  font-size: 17px; font-weight: 700; letter-spacing: -0.03em;
+}
+.activeBadge {
+  margin-left: auto; display: flex; align-items: center; gap: 5px;
+  font-size: 9px; color: #06d6a0;
+  font-family: 'DM Mono', monospace; letter-spacing: 0.08em;
+}
+.activeDot {
+  width: 5px; height: 5px; border-radius: 50%;
+  background: #06d6a0; box-shadow: 0 0 8px #06d6a0;
+  animation: breathe 2s ease-in-out infinite;
+}
+.headerSub {
+  font-size: 9px; color: rgba(255,255,255,0.25);
+  letter-spacing: 0.06em; margin-bottom: 14px; text-transform: uppercase;
+}
+
+/* ── Orbital ───────────────────────────────────────────────────── */
+.orbitalWrap { padding: 0 10px; flex-shrink: 0; }
+.orbitalSvg { width: 100%; overflow: visible; }
+.connLine { animation: breathe 3s ease-in-out infinite; }
+.orbPulse { animation: orbPulse 2.5s ease-in-out infinite; }
+
+/* ── Tail list ─────────────────────────────────────────────────── */
+.tailList {
+  flex: 1; overflow-y: auto; padding: 4px 12px 16px;
+  display: flex; flex-direction: column; gap: 4px;
+}
+.tailList::-webkit-scrollbar { width: 2px; }
+.tailList::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 4px; }
+
+.tailRow {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 12px; border-radius: 8px; cursor: pointer;
+  border: 1px solid rgba(255,255,255,0.05);
+  background: rgba(255,255,255,0.02);
+  transition: all 0.2s ease;
+}
+.tailRow:hover { background: rgba(255,255,255,0.04); }
+
+.progressRing { transform: rotate(-90deg); flex-shrink: 0; }
+
+.tailRowGlyph {
+  position: absolute; inset: 0; display: flex;
+  align-items: center; justify-content: center;
+  font-size: 9px; font-family: 'DM Mono', monospace;
+}
+.tailRowInfo { flex: 1; min-width: 0; }
+.tailRowName {
+  display: flex; align-items: center; gap: 5px;
+  font-size: 11px; font-weight: 600;
+}
+.tailRowTagline { font-size: 9px; color: rgba(255,255,255,0.3); margin-top: 1px; }
+.tailRowRight { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex-shrink: 0; }
+.tailRowPct { font-size: 9px; font-family: 'DM Mono', monospace; }
+
+.aiBadge {
+  font-size: 7px; padding: 1px 4px; border-radius: 3px;
+  background: rgba(165,148,255,0.15); color: #a594ff;
+  font-family: 'DM Mono', monospace; letter-spacing: 0.04em;
+}
+
+/* ── Mini toggle ───────────────────────────────────────────────── */
+.miniToggle {
+  width: 24px; height: 13px; border-radius: 7px; border: none;
+  cursor: pointer; position: relative; transition: background 0.2s;
+}
+.miniToggleThumb {
+  position: absolute; top: 1.5px; width: 10px; height: 10px;
+  border-radius: 50%; background: white; transition: left 0.2s;
+}
+
+/* ── Right detail panel ────────────────────────────────────────── */
+.right {
+  flex: 1; display: flex; flex-direction: column; min-width: 0;
+  animation: popIn 0.25s ease;
+}
+
+.detailHeader {
+  padding: 24px 28px 14px;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  flex-shrink: 0;
+}
+.detailTop {
+  display: flex; align-items: flex-start; gap: 14px; margin-bottom: 14px;
+}
+.detailGlyph {
+  position: absolute; inset: 0; display: flex;
+  align-items: center; justify-content: center;
+  font-size: 15px; font-family: 'DM Mono', monospace;
+}
+.detailTitleRow {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 6px;
+}
+.detailTitle {
+  margin: 0; font-size: 20px; font-weight: 700; letter-spacing: -0.03em;
+}
+.detailPct {
+  margin-left: auto; font-size: 10px; color: rgba(255,255,255,0.3);
+  font-family: 'DM Mono', monospace;
+}
+.detailDesc {
+  margin: 0; font-size: 12px; color: rgba(255,255,255,0.45);
+  line-height: 1.65; max-width: 560px;
+}
+
+/* Big toggle */
+.bigToggle {
+  width: 34px; height: 18px; border-radius: 9px; border: none;
+  cursor: pointer; position: relative; transition: background 0.2s; flex-shrink: 0;
+}
+.bigToggleThumb {
+  position: absolute; top: 2px; width: 14px; height: 14px;
+  border-radius: 50%; background: white; transition: left 0.2s;
+}
+
+/* Progress bar */
+.progressBarRow {
+  display: flex; align-items: center; gap: 10px;
+}
+.progressBarTrack {
+  flex: 1; height: 3px; background: rgba(255,255,255,0.06);
+  border-radius: 2px; overflow: hidden;
+}
+.progressBarFill {
+  height: 100%; border-radius: 2px; transition: width 1s ease;
+}
+.progressBarLabel {
+  font-size: 9px; font-family: 'DM Mono', monospace; flex-shrink: 0;
+}
+
+/* ── Tab bar ───────────────────────────────────────────────────── */
+.tabBar {
+  display: flex; border-bottom: 1px solid rgba(255,255,255,0.05);
+  padding: 0 28px; flex-shrink: 0;
+}
+.tabBtn {
+  padding: 10px 14px; background: none; border: none;
+  border-bottom: 2px solid transparent; color: rgba(255,255,255,0.3);
+  font-size: 10px; cursor: pointer; font-family: 'Sora', sans-serif;
+  letter-spacing: 0.08em; text-transform: uppercase;
+  margin-bottom: -1px; transition: color 0.2s ease;
+}
+.tabBtn:hover { color: rgba(255,255,255,0.6); }
+
+/* ── Detail content ────────────────────────────────────────────── */
+.detailContent {
+  flex: 1; overflow-y: auto; padding: 20px 28px;
+}
+.detailContent::-webkit-scrollbar { width: 2px; }
+.detailContent::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 4px; }
+
+/* ── Activity feed ─────────────────────────────────────────────── */
+.liveFeedHeader {
+  display: flex; align-items: center; gap: 7px; margin-bottom: 14px;
+  font-size: 9px; color: rgba(255,255,255,0.35);
+  letter-spacing: 0.1em; text-transform: uppercase;
+}
+.liveDot {
+  width: 5px; height: 5px; border-radius: 50%;
+  background: #06d6a0; box-shadow: 0 0 8px #06d6a0;
+  animation: breathe 2s ease-in-out infinite;
+}
+.tailPath { margin-left: auto; font-family: 'DM Mono', monospace; }
+
+.activityFeed { display: flex; flex-direction: column; }
+.feedRow {
+  display: flex; gap: 10px; align-items: flex-start;
+  padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.04);
+  animation: slideIn 0.3s ease both;
+}
+.feedRow:last-child { border-bottom: none; }
+.feedTime {
+  font-family: 'DM Mono', monospace; font-size: 8px;
+  color: rgba(255,255,255,0.25); flex-shrink: 0; padding-top: 3px; letter-spacing: 0.04em;
+}
+.feedDot {
+  width: 4px; height: 4px; border-radius: 50%;
+  margin-top: 4px; flex-shrink: 0;
+}
+.feedMsg {
+  font-size: 11px; color: rgba(255,255,255,0.6); line-height: 1.55;
+}
+.emptyFeed {
+  font-size: 11px; color: rgba(255,255,255,0.25); padding: 12px 0;
+}
+
+/* ── Rule list ─────────────────────────────────────────────────── */
+.ruleList { display: flex; flex-direction: column; gap: 5px; }
+
+.ruleRow {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 12px; border-radius: 8px;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.05);
+  transition: all 0.2s;
+}
+.ruleToggle {
+  width: 26px; height: 14px; border-radius: 7px; border: none;
+  cursor: pointer; position: relative; transition: background 0.2s; flex-shrink: 0;
+}
+.ruleToggleThumb {
+  position: absolute; top: 1.5px; width: 11px; height: 11px;
+  border-radius: 50%; background: white; transition: left 0.2s;
+}
+.ruleMeta { flex: 1; min-width: 0; }
+.ruleLabel { display: block; font-size: 11px; color: rgba(255,255,255,0.8); }
+.ruleDetail {
+  display: block; font-size: 8px; color: rgba(255,255,255,0.25);
+  font-family: 'DM Mono', monospace; margin-top: 1px;
+}
+.ruleDelete {
+  background: none; border: none; color: rgba(255,255,255,0.2);
+  cursor: pointer; font-size: 14px; padding: 0 4px; transition: color 0.2s;
+}
+.ruleDelete:hover { color: #f72585; }
+
+/* Rule form */
+.ruleForm {
+  padding: 14px; background: rgba(255,255,255,0.03);
+  border: 1px solid; border-radius: 8px; margin-top: 8px;
+}
+.ruleFormGrid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px;
+}
+.formLabel {
+  font-size: 8px; color: rgba(255,255,255,0.35); margin-bottom: 4px;
+  font-family: 'DM Mono', monospace; letter-spacing: 0.08em; text-transform: uppercase;
+}
+.formInput, .formSelect {
+  width: 100%; background: rgba(0,0,0,0.4);
+  border: 1px solid rgba(255,255,255,0.1); border-radius: 5px;
+  padding: 5px 8px; color: rgba(255,255,255,0.8); font-size: 10px;
+  font-family: 'Sora', sans-serif; outline: none; box-sizing: border-box;
+}
+.formSelect { font-family: 'DM Mono', monospace; }
+.ruleFormActions { display: flex; gap: 6px; }
+.btnPrimary {
+  padding: 5px 14px; border-radius: 5px; border: none;
+  font-size: 10px; font-weight: 600; cursor: pointer; font-family: 'Sora', sans-serif;
+}
+.btnSecondary {
+  padding: 5px 14px; border-radius: 5px;
+  border: 1px solid rgba(255,255,255,0.1);
+  background: transparent; color: rgba(255,255,255,0.4);
+  font-size: 10px; cursor: pointer; font-family: 'Sora', sans-serif;
+}
+
+.addRuleBtn {
+  padding: 6px 12px; border-radius: 5px; border: 1px solid;
+  font-size: 9px; cursor: pointer; letter-spacing: 0.04em;
+  margin-top: 8px; transition: opacity 0.2s;
+}
+.addRuleBtn:hover { opacity: 0.8; }
+
+/* ── Presets ───────────────────────────────────────────────────── */
+.presetList { display: flex; flex-direction: column; gap: 6px; }
+.presetRow {
+  display: flex; align-items: center; gap: 12px;
+  padding: 11px 14px; border-radius: 8px;
+  background: rgba(255,255,255,0.025);
+  border: 1px solid rgba(255,255,255,0.06);
+  transition: all 0.2s; cursor: default;
+}
+.presetDot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
+.presetLabel { font-size: 12px; color: rgba(255,255,255,0.65); flex: 1; line-height: 1.4; }
+.presetBtn {
+  padding: 4px 12px; border-radius: 5px; border: 1px solid;
+  font-size: 9px; cursor: pointer; transition: opacity 0.2s; flex-shrink: 0;
+}
+.presetBtn:hover { opacity: 0.8; }
+
+/* ── Loading ───────────────────────────────────────────────────── */
+.loading {
+  display: flex; align-items: center; justify-content: center;
+  height: 100%; font-size: 12px; color: rgba(255,255,255,0.3);
+  font-family: 'DM Mono', monospace;
+}
+
+/* ── Keyframes ─────────────────────────────────────────────────── */
+@keyframes breathe {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.9; }
+}
+@keyframes orbPulse {
+  0%, 100% { r: 26; opacity: 0.25; }
+  50% { r: 32; opacity: 0.1; }
+}
+@keyframes popIn {
+  from { opacity: 0; transform: scale(0.97); }
+  to { opacity: 1; transform: scale(1); }
+}
+@keyframes slideIn {
+  from { opacity: 0; transform: translateX(-6px); }
+  to { opacity: 1; transform: translateX(0); }
+}

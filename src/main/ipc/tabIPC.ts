@@ -1,11 +1,13 @@
 // src/main/ipc/tabIPC.ts
 import type { IpcMain, BrowserWindow } from 'electron'
 import type { TabManager } from '../services/TabManager'
+import type { NineTailsEngine } from '../services/NineTailsEngine'
 
 export function registerTabIPC(
   ipcMain: IpcMain,
   tabManager: TabManager,
   win: BrowserWindow,
+  nineTailsEngine?: NineTailsEngine,
 ): void {
   ipcMain.handle('tab:create',    async (_e, opts) => tabManager.createTab(opts))
   ipcMain.handle('tab:close',     async (_e, id: string) => tabManager.closeTab(id))
@@ -35,4 +37,14 @@ export function registerTabIPC(
   // Modal overlay management — hides BrowserView so React modals paint on top
   ipcMain.handle('tab:modal-open',  () => tabManager.hideActiveView())
   ipcMain.handle('tab:modal-close', () => tabManager.showActiveView())
+
+  // Nine Tails — Watcher tail MutationObserver hits from page content scripts
+  ipcMain.handle('ninetails:page-mutation', (_e, tabId: string, url: string, ruleId: string) => {
+    nineTailsEngine?.onPageMutation(tabId, url, ruleId)
+  })
+
+  // Nine Tails — Mirror tail text highlight from page content scripts
+  ipcMain.handle('ninetails:page-highlight', (_e, tabId: string, text: string, url: string) => {
+    nineTailsEngine?.onHighlight(tabId, text, url)
+  })
 }

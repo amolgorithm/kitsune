@@ -42,6 +42,7 @@ export function Sidebar() {
   const createWorkspace  = useBrowserStore(s => s.createWorkspace)
   const sidebarWidth     = useBrowserStore(s => s.sidebarWidth)
   const setSidebarWidth  = useBrowserStore(s => s.setSidebarWidth)
+  const toggleNineTails  = useBrowserStore(s => s.toggleNineTails)
 
   const [searchQuery, setSearchQuery]     = useState('')
   const [collapsed, setCollapsed]         = useState<Set<string>>(new Set())
@@ -138,7 +139,7 @@ export function Sidebar() {
         {!isCollapsed && (
           <>
             <span className={styles.logoText}>Kitsune</span>
-            <span className={styles.version}>v0.10.0-beta</span>
+            <span className={styles.version}>beta</span>
           </>
         )}
       </div>
@@ -312,12 +313,16 @@ export function Sidebar() {
             <button className={styles.iconRailFooterBtn} onClick={toggleFileSearch} title="Files">
               <IconFile size={15} />
             </button>
+            <button className={styles.iconRailFooterBtn} onClick={toggleNineTails} title="Nine Tails (⌘9)">
+              <span style={{ fontFamily: 'serif', fontSize: 13, lineHeight: 1 }}>九</span>
+            </button>
           </>
         ) : (
           <>
-            <FooterItem icon={<IconSettings size={14} />} label="Settings" kbd="⌘," onClick={openSettings} />
-            <FooterItem icon={<IconSplitH size={14} />}   label="Cleave"   kbd="⌘\" onClick={toggleCleave} />
-            <FooterItem icon={<IconFile size={14} />}     label="Files"    onClick={toggleFileSearch} />
+            <FooterItem icon={<IconSettings size={14} />} label="Settings"   kbd="⌘,"  onClick={openSettings} />
+            <FooterItem icon={<IconSplitH size={14} />}   label="Cleave"     kbd="⌘\"  onClick={toggleCleave} />
+            <FooterItem icon={<IconFile size={14} />}     label="Files"                onClick={toggleFileSearch} />
+            <FooterItem icon={<span style={{ fontFamily: 'serif', fontSize: 13, lineHeight: 1 }}>九</span>} label="Nine Tails" kbd="⌘9" onClick={toggleNineTails} />
             <div className={styles.footerUser}>
               <div className={styles.userAvatar}><IconUser size={12} /></div>
               <div className={styles.lensIndicator}>

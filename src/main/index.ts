@@ -12,6 +12,7 @@ import { CleaveManager } from './services/CleaveManager'
 import { SettingsStore } from './services/SettingsStore'
 import { CommandEngine } from './services/CommandEngine'
 import { CommandExecutorImpl } from './services/CommandExecutorImpl'
+import { NineTailsEngine } from './services/NineTailsEngine'
 import { registerTabIPC } from './ipc/tabIPC'
 import { registerAIIPC } from './ipc/aiIPC'
 import { registerPrivacyIPC } from './ipc/privacyIPC'
@@ -19,6 +20,7 @@ import { registerWorkspaceIPC } from './ipc/workspaceIPC'
 import { registerCleaveIPC } from './ipc/cleaveIPC'
 import { registerSettingsIPC } from './ipc/settingsIPC'
 import { registerCommandIPC } from './ipc/commandIPC'
+import { registerNineTailsIPC } from './ipc/nineTailsIPC'
 
 
 const DEV        = !app.isPackaged
@@ -38,6 +40,7 @@ let aiService: AIService
 let workspaceManager: WorkspaceManager
 let cleaveManager: CleaveManager
 let commandEngine: CommandEngine
+let nineTailsEngine: NineTailsEngine
 
 app.whenReady().then(async () => {
   settings = new SettingsStore()
@@ -57,6 +60,13 @@ app.whenReady().then(async () => {
 
   tabManager = new TabManager(workspaceManager, settings, mainWindow)
 
+  nineTailsEngine = new NineTailsEngine(settings, tabManager, workspaceManager)
+  await nineTailsEngine.init(mainWindow)
+
+  // Wire Nine Tails into the other services that need it
+  tabManager.setNineTailsEngine(nineTailsEngine)
+  privacyEngine.setNineTailsEngine(nineTailsEngine)
+
   commandEngine = new CommandEngine(settings)
   const cmdExecutor = new CommandExecutorImpl(
     tabManager, workspaceManager, aiService,
@@ -72,11 +82,11 @@ app.whenReady().then(async () => {
   registerTabIPC(ipcMain, tabManager, mainWindow)
   registerAIIPC(ipcMain, aiService, tabManager)
   registerPrivacyIPC(ipcMain, privacyEngine)
-  // Pass tabManager + aiService so workspace IPC can do AI clustering
   registerWorkspaceIPC(ipcMain, workspaceManager, tabManager, aiService, mainWindow)
   registerCleaveIPC(ipcMain, cleaveManager, tabManager, mainWindow)
   registerSettingsIPC(ipcMain, settings, mainWindow)
   registerCommandIPC(ipcMain, commandEngine, tabManager, workspaceManager, aiService, mainWindow)
+  registerNineTailsIPC(ipcMain, nineTailsEngine, mainWindow)
 
   ipcMain.handle('window:minimize', () => mainWindow?.minimize())
   ipcMain.handle('window:maximize', () => {
@@ -98,6 +108,7 @@ app.whenReady().then(async () => {
 app.on('window-all-closed', () => {
   hibernationScheduler?.stop()
   commandEngine?.stopScheduler()
+  nineTailsEngine?.destroy()
   if (!IS_MAC) app.quit()
 })
 

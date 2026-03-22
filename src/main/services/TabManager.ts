@@ -4,6 +4,7 @@ import { randomUUID } from 'crypto'
 import type { KitsuneTab } from '../../shared/types'
 import type { WorkspaceManager } from './WorkspaceManager'
 import type { SettingsStore } from './SettingsStore'
+import type { NineTailsEngine } from './NineTailsEngine'
 
 interface CreateTabOptions {
   url: string
@@ -19,36 +20,39 @@ interface PaneRegion {
   isAIPane?: boolean
 }
 
-const CHROME_TOP = 32 + 48 + 36   // titlebar(32) + navbar(48) + lensbar(36)
-let   SIDEBAR_W  = 240             // mutable — updated via setSidebarWidth()
-const BOTTOM_H   = 24 + 28         // statusbar(24) + hotkeybar(28)
-const MIN_SIDEBAR_W = 52           // collapsed / icon-only mode
+const CHROME_TOP    = 32 + 48 + 36
+let   SIDEBAR_W     = 240
+const BOTTOM_H      = 24 + 28
+const MIN_SIDEBAR_W = 52
 
 export class TabManager {
-  public views       = new Map<string, BrowserView>()
-  private tabs        = new Map<string, KitsuneTab>()
+  public views         = new Map<string, BrowserView>()
+  private tabs          = new Map<string, KitsuneTab>()
   private activeTabId: string | null = null
-  private aiPanelWidth = 0
-  private viewHidden   = false
-  private currentPanes: PaneRegion[] = []  // null = single pane mode
+  private aiPanelWidth  = 0
+  private viewHidden    = false
+  private currentPanes: PaneRegion[] = []
+  private nineTails: NineTailsEngine | null = null
 
   constructor(
     private readonly workspaceManager: WorkspaceManager,
     private readonly settings: SettingsStore,
     private readonly window: BrowserWindow,
   ) {
-    // Load persisted sidebar width
     const persistedW = settings.getRaw('sidebarWidth') as number | null
-    if (persistedW && persistedW >= MIN_SIDEBAR_W) {
-      SIDEBAR_W = persistedW
-    }
+    if (persistedW && persistedW >= MIN_SIDEBAR_W) SIDEBAR_W = persistedW
 
     window.on('resize',     () => this.repositionAll())
     window.on('maximize',   () => this.repositionAll())
     window.on('unmaximize', () => this.repositionAll())
   }
 
-  // ─── Sidebar width (called from IPC) ────────────────────────────
+  // Called from index.ts after NineTailsEngine is created
+  setNineTailsEngine(engine: NineTailsEngine): void {
+    this.nineTails = engine
+  }
+
+  // ─── Sidebar width ──────────────────────────────────────────────
 
   setSidebarWidth(w: number): void {
     SIDEBAR_W = Math.max(MIN_SIDEBAR_W, Math.min(400, w))
@@ -56,21 +60,27 @@ export class TabManager {
     this.repositionAll()
   }
 
-  getSidebarWidth(): number {
-    return SIDEBAR_W
-  }
+  getSidebarWidth(): number { return SIDEBAR_W }
 
   // ─── Tab lifecycle ──────────────────────────────────────────────
 
   async createTab(opts: CreateTabOptions): Promise<KitsuneTab> {
     const id          = randomUUID()
-    const workspaceId = opts.workspaceId ?? this.workspaceManager.activeId
+    let workspaceId   = opts.workspaceId ?? this.workspaceManager.activeId
     const now         = Date.now()
+
+    // Courier tail — apply URL routing rules before the tab is placed
+    let lensId: string | undefined
+    if (this.nineTails && opts.url !== 'kitsune://newtab') {
+      const routing = this.nineTails.routeTab(id, opts.url)
+      if (routing?.workspaceId) workspaceId = routing.workspaceId
+      if (routing?.lensId)      lensId = routing.lensId
+    }
 
     const tab: KitsuneTab = {
       id, url: opts.url,
-      title: opts.url === 'kitsune://newtab' ? 'New Tab' : 'Loading…',
-      status: opts.url === 'kitsune://newtab' ? 'ready' : 'loading',
+      title:  opts.url === 'kitsune://newtab' ? 'New Tab' : 'Loading…',
+      status: opts.url === 'kitsune://newtab' ? 'ready'  : 'loading',
       workspaceId, groupId: opts.groupId,
       createdAt: now, lastAccessedAt: now,
       memoryBytes: 0, hibernated: false, isPinned: false,
@@ -86,6 +96,11 @@ export class TabManager {
       view.webContents.loadURL(opts.url)
     }
 
+    // Push lens switch to renderer if Courier routed to a different lens
+    if (lensId) {
+      this.window.webContents.send('command:ui', { action: 'lens.set', id: lensId })
+    }
+
     if (!opts.background) await this.activateTab(id)
     this.pushTabUpdate(tab)
     return tab
@@ -96,7 +111,6 @@ export class TabManager {
     if (!tab) return
     if (tab.hibernated) await this.wakeTab(id)
 
-    // Remove previous active BrowserView (unless in split pane mode)
     if (this.currentPanes.length === 0 && this.activeTabId && this.activeTabId !== id) {
       const prev = this.views.get(this.activeTabId)
       if (prev) this.window.removeBrowserView(prev)
@@ -154,9 +168,8 @@ export class TabManager {
       this.views.set(id, view)
       this.wireViewEvents(id, view)
       if (id === this.activeTabId && !this.viewHidden) {
-        if (this.currentPanes.length > 0) {
-          this.repositionAll()
-        } else {
+        if (this.currentPanes.length > 0) this.repositionAll()
+        else {
           this.window.addBrowserView(view)
           this.repositionView(view, this.singlePaneBounds())
         }
@@ -207,18 +220,13 @@ export class TabManager {
   async evalInTab(id: string, code: string): Promise<unknown> {
     const view = this.views.get(id)
     if (!view) return null
-    try {
-      return await view.webContents.executeJavaScript(code)
-    } catch (e) { throw e }
+    try { return await view.webContents.executeJavaScript(code) }
+    catch (e) { throw e }
   }
-
-  // ─── Navigation ────────────────────────────────────────────────
 
   goBack(id: string):    void { const v = this.views.get(id); if (v?.webContents.canGoBack())    v.webContents.goBack() }
   goForward(id: string): void { const v = this.views.get(id); if (v?.webContents.canGoForward()) v.webContents.goForward() }
   reload(id: string):    void { this.views.get(id)?.webContents.reload() }
-
-  // ─── Modal overlay ──────────────────────────────────────────────
 
   hideActiveView(): void {
     this.viewHidden = true
@@ -232,14 +240,10 @@ export class TabManager {
     this.repositionAll()
   }
 
-  // ─── AI panel width ─────────────────────────────────────────────
-
   setAIPanelWidth(w: number): void {
     this.aiPanelWidth = w
     this.repositionAll()
   }
-
-  // ─── Cleave split layout ────────────────────────────────────────
 
   applyLayout(panes: PaneRegion[]): void {
     if (this.viewHidden) return
@@ -260,16 +264,14 @@ export class TabManager {
       return
     }
 
-    const [w, h] = this.window.getContentSize()
-    const contentW = w - SIDEBAR_W - this.aiPanelWidth
-    const contentH = h - CHROME_TOP - BOTTOM_H
-
-    const paneCount   = panes.filter(p => !p.isAIPane).length
-    const paneWidth   = Math.floor(contentW / paneCount)
+    const [w, h]    = this.window.getContentSize()
+    const contentW  = w - SIDEBAR_W - this.aiPanelWidth
+    const contentH  = h - CHROME_TOP - BOTTOM_H
+    const paneCount = panes.filter(p => !p.isAIPane).length
+    const paneWidth = Math.floor(contentW / paneCount)
 
     panes.forEach((pane, i) => {
       if (pane.isAIPane) return
-
       const tabId = pane.tabId ?? this.activeTabId
       if (!tabId) return
 
@@ -279,12 +281,7 @@ export class TabManager {
           const view = this.views.get(tabId)
           if (view) {
             this.window.addBrowserView(view)
-            this.repositionView(view, {
-              x: SIDEBAR_W + i * paneWidth,
-              y: CHROME_TOP,
-              width: paneWidth,
-              height: contentH,
-            })
+            this.repositionView(view, { x: SIDEBAR_W + i * paneWidth, y: CHROME_TOP, width: paneWidth, height: contentH })
           }
         })
         return
@@ -292,18 +289,10 @@ export class TabManager {
 
       const view = this.views.get(tabId)
       if (!view) return
-
       this.window.addBrowserView(view)
-      this.repositionView(view, {
-        x: SIDEBAR_W + i * paneWidth,
-        y: CHROME_TOP,
-        width: paneWidth,
-        height: contentH,
-      })
+      this.repositionView(view, { x: SIDEBAR_W + i * paneWidth, y: CHROME_TOP, width: paneWidth, height: contentH })
     })
   }
-
-  // ─── Accessors ──────────────────────────────────────────────────
 
   updateTabMeta(id: string, patch: Partial<KitsuneTab>): void {
     const tab = this.tabs.get(id)
@@ -317,8 +306,8 @@ export class TabManager {
     return workspaceId ? all.filter(t => t.workspaceId === workspaceId) : all
   }
 
-  getTab(id: string):         KitsuneTab | undefined { return this.tabs.get(id) }
-  getActiveTabId():           string | null           { return this.activeTabId }
+  getTab(id: string):     KitsuneTab | undefined { return this.tabs.get(id) }
+  getActiveTabId():       string | null           { return this.activeTabId }
 
   async getPageText(id: string, maxChars = 8000): Promise<string> {
     const view = this.views.get(id)
@@ -331,8 +320,6 @@ export class TabManager {
   }
 
   repositionActiveView(): void { this.repositionAll() }
-
-  // ─── Private ───────────────────────────────────────────────────
 
   private repositionAll(): void {
     if (this.viewHidden) return
@@ -385,20 +372,33 @@ export class TabManager {
     wc.on('page-favicon-updated', (_e, favicons) => {
       if (favicons[0]) this.updateTabMeta(id, { favicon: favicons[0] })
     })
-    wc.on('did-start-loading',    ()             => this.updateTabMeta(id, { status: 'loading' }))
-    wc.on('did-finish-load',      ()             => {
-      this.updateTabMeta(id, {
-        status: 'ready', url: wc.getURL(),
-        title: wc.getTitle() || wc.getURL(), lastAccessedAt: Date.now(),
-      })
+    wc.on('did-start-loading', () => this.updateTabMeta(id, { status: 'loading' }))
+    wc.on('did-finish-load',   () => {
+      const url   = wc.getURL()
+      const title = wc.getTitle() || url
+      this.updateTabMeta(id, { status: 'ready', url, title, lastAccessedAt: Date.now() })
+
+      // Harvest tail — index page content after load settles
+      if (this.nineTails && url && !url.startsWith('kitsune://')) {
+        setTimeout(async () => {
+          try {
+            const pageText = await this.getPageText(id, 8000)
+            await this.nineTails!.indexPage(id, url, title, pageText)
+          } catch { /* tab may have navigated away */ }
+        }, 1500)
+      }
     })
-    wc.on('did-fail-load', (_e, _c, desc)  => this.updateTabMeta(id, { status: 'error', title: desc }))
-    wc.on('did-navigate',          (_e, url) => {
+    wc.on('did-fail-load', (_e, _c, desc) => this.updateTabMeta(id, { status: 'error', title: desc }))
+    wc.on('did-navigate', (_e, url) => {
       this.updateTabMeta(id, { url })
       this.window.webContents.send('tab:navigate', { id, url })
       this.window.webContents.send('tab:nav-state', {
         id, canGoBack: wc.canGoBack(), canGoForward: wc.canGoForward(),
       })
+      // Relay tail — fire url_visit trigger
+      if (this.nineTails) {
+        this.nineTails.fireRelay('url_visit', { tabId: id, url }).catch(() => {})
+      }
     })
     wc.on('did-navigate-in-page', (_e, url) => {
       this.updateTabMeta(id, { url })

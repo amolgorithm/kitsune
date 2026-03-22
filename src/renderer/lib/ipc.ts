@@ -3,6 +3,7 @@ import type {
   KitsuneTab, TabGroup, Workspace, AISummary, CrossPageSummary,
   ChatMessage, TaskItem, BlockedTracker, PageRiskReport,
   PaneNode, KitsuneSettings,
+  TailId, TailRule, TailEvent, TailSnapshot, NineTailsState,
 } from '../../shared/types'
 
 const ipc = window.kitsune
@@ -91,6 +92,29 @@ export const Push = {
     ipc.on('command:ui' as any, fn as any),
   onSidebarWidthUpdate: (fn: (w: number) => void) =>
     ipc.on('sidebar:width-update' as any, fn as any),
+  onNineTailsEvent: (fn: (event: TailEvent) => void) =>
+    ipc.on('ninetails:tail-event' as any, fn as any),
+  onNineTailsNotification: (fn: (n: { title: string; body: string; url: string }) => void) =>
+    ipc.on('ninetails:notification' as any, fn as any),
+  onNineTailsFocusWindow: (fn: (d: { active: boolean; rule: TailRule }) => void) =>
+    ipc.on('ninetails:focus-window' as any, fn as any),
+  onNineTailsHarvestIndex: (fn: (d: { tabId: string; url: string; title: string; pageText: string }) => void) =>
+    ipc.on('ninetails:harvest-index' as any, fn as any),
+  onNineTailsMirrorSync: (fn: (d: { content: string; vaultPath: string; filePath: string }) => void) =>
+    ipc.on('ninetails:mirror-sync' as any, fn as any),
+}
+
+export const NineTailsIPC = {
+  getState:        ()                                                  => ipc.invoke<NineTailsState>('ninetails:get-state' as any),
+  setTailEnabled:  (id: TailId, enabled: boolean)                     => ipc.invoke<void>('ninetails:set-tail-enabled' as any, id, enabled),
+  addRule:         (rule: Omit<TailRule, 'id' | 'createdAt'>)         => ipc.invoke<TailRule>('ninetails:add-rule' as any, rule),
+  updateRule:      (tailId: TailId, ruleId: string, patch: Partial<TailRule>) => ipc.invoke<void>('ninetails:update-rule' as any, tailId, ruleId, patch),
+  deleteRule:      (tailId: TailId, ruleId: string)                   => ipc.invoke<void>('ninetails:delete-rule' as any, tailId, ruleId),
+  getEvents:       (tailId?: TailId, limit?: number)                  => ipc.invoke<TailEvent[]>('ninetails:get-events' as any, tailId, limit),
+  getSnapshots:    ()                                                  => ipc.invoke<TailSnapshot[]>('ninetails:get-snapshots' as any),
+  createSnapshot:  (tag?: string)                                      => ipc.invoke<TailSnapshot>('ninetails:create-snapshot' as any, tag),
+  restoreSnapshot: (snapshotId: string)                               => ipc.invoke<void>('ninetails:restore-snapshot' as any, snapshotId),
+  relayTest:       (url: string)                                       => ipc.invoke<{ ok: boolean; status?: number; error?: string }>('ninetails:relay-test' as any, url),
 }
 
 export { CommandIPC } from './commandIpc'

@@ -7,7 +7,7 @@ import type {
 } from '../../shared/types'
 import { DEFAULT_SETTINGS } from '../../shared/types'
 import { LENS_IDS } from '../../shared/constants'
-import { TabIPC, WorkspaceIPC, SettingsIPC, Push, CleaveIPC } from '../lib/ipc'
+import { TabIPC, WorkspaceIPC, SettingsIPC, Push, CleaveIPC, NineTailsIPC } from '../lib/ipc'
 
 const BUILT_IN_LENSES: LensProfile[] = [
   { id: LENS_IDS.DEFAULT,  name: 'Default',  icon: 'globe',    description: 'Standard browsing',             cssClass: 'lens-default',  forceReaderMode: false, defaultAITab: 'summary',  hotkey: 'ctrl+1', builtIn: true },
@@ -56,6 +56,7 @@ interface BrowserState {
   cleaveOpen: boolean
   fileSearchOpen: boolean
   replOpen: boolean
+  nineTailsOpen: boolean
   urlBarFocused: boolean
   urlBarValue: string
 
@@ -112,6 +113,9 @@ interface BrowserState {
   toggleREPL:          () => void
   openREPL:            () => void
   closeREPL:           () => void
+  toggleNineTails:     () => void
+  openNineTails:       () => void
+  closeNineTails:      () => void
   setUrlBarFocused:    (v: boolean) => void
   setUrlBarValue:      (v: string) => void
 
@@ -134,7 +138,7 @@ export const useBrowserStore = create<BrowserState>()(
     aiSummaries: new Map(), chatMessages: [], chatLoading: false,
 
     commandPaletteOpen: false, settingsOpen: false, cleaveOpen: false,
-    fileSearchOpen: false, replOpen: false,
+    fileSearchOpen: false, replOpen: false, nineTailsOpen: false,
     urlBarFocused: false, urlBarValue: '',
 
     // ── Sidebar resize ─────────────────────────────────────────
@@ -316,6 +320,13 @@ export const useBrowserStore = create<BrowserState>()(
     },
     openREPL:  () => { TabIPC.modalOpen();  set(s => { s.replOpen = true  }) },
     closeREPL: () => { TabIPC.modalClose(); set(s => { s.replOpen = false }) },
+    toggleNineTails: () => {
+      const next = !get().nineTailsOpen
+      if (next) TabIPC.modalOpen(); else TabIPC.modalClose()
+      set(s => { s.nineTailsOpen = next })
+    },
+    openNineTails:  () => { TabIPC.modalOpen();  set(s => { s.nineTailsOpen = true  }) },
+    closeNineTails: () => { TabIPC.modalClose(); set(s => { s.nineTailsOpen = false }) },
     setUrlBarFocused: (v) => set(s => { s.urlBarFocused = v }),
     setUrlBarValue:   (v) => set(s => { s.urlBarValue = v }),
 
@@ -407,6 +418,18 @@ export const useBrowserStore = create<BrowserState>()(
       Push.onSidebarWidthUpdate(w => {
         document.documentElement.style.setProperty('--k-sidebar-w', `${w}px`)
         set(s => { s.sidebarWidth = w })
+      })
+
+      // Nine Tails — Focus window active/inactive
+      Push.onNineTailsFocusWindow(({ active }) => {
+        // Could drive a global 'focus mode active' indicator in the UI here
+        console.log('[NineTails] focus window', active ? 'started' : 'ended')
+      })
+
+      // Nine Tails — system notifications that need in-app handling
+      Push.onNineTailsNotification(({ title, body, url }) => {
+        console.log('[NineTails notification]', title, body, url)
+        // Future: push into a notification tray component
       })
 
       // Settings pushed from main when changed

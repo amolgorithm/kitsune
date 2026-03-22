@@ -2,6 +2,7 @@
 import { Session } from 'electron'
 import type { BlockedTracker, TrackerCategory, PageRiskReport } from '../../shared/types'
 import type { SettingsStore } from './SettingsStore'
+import type { NineTailsEngine } from './NineTailsEngine'
 
 const FINGERPRINT_DOMAINS = [
   'fingerprintjs.com', 'fingerprint2.com',
@@ -29,12 +30,18 @@ export class PrivacyEngine {
   private blockLog = new Map<string, BlockedTracker[]>()
   private blockedDomains: Set<string>
   private totalBlocked = 0
+  private nineTails: NineTailsEngine | null = null
 
   constructor(
     private readonly sess: Session,
     private readonly settings: SettingsStore,
   ) {
     this.blockedDomains = new Set(SEED_BLOCKED_DOMAINS)
+  }
+
+  // Called from index.ts after NineTailsEngine is created
+  setNineTailsEngine(engine: NineTailsEngine): void {
+    this.nineTails = engine
   }
 
   async init(): Promise<void> {
@@ -52,7 +59,7 @@ export class PrivacyEngine {
     const blocks = this.blockLog.get(tabId) ?? []
     let score = 0
     for (const b of blocks) {
-      if (b.category === 'malware')          score += 0.4
+      if (b.category === 'malware')            score += 0.4
       else if (b.category === 'crypto-mining') score += 0.3
       else if (b.category === 'fingerprinting') score += 0.15
       else if (b.category === 'advertising')    score += 0.05
@@ -80,6 +87,25 @@ export class PrivacyEngine {
       // Never block local Vite dev server
       if (details.url.startsWith('http://localhost') || details.url.startsWith('ws://localhost')) {
         return callback({ cancel: false })
+      }
+
+      // Shield tail — custom rules run before the built-in blocklist
+      if (this.nineTails) {
+        const shield = this.nineTails.shouldBlockRequest(details.url, details.resourceType ?? '')
+        if (shield.block) {
+          this.totalBlocked++
+          const tabId = String(details.webContentsId ?? 'unknown')
+          if (!this.blockLog.has(tabId)) this.blockLog.set(tabId, [])
+          this.blockLog.get(tabId)!.push({
+            url: details.url, category: 'advertising', tabId, blockedAt: Date.now(), method: 'known-list',
+          })
+          return callback({ cancel: true })
+        }
+        // Strip action — redirect to cleaned URL
+        if (shield.action === 'strip') {
+          const cleaned = this.nineTails.stripUtmParams(details.url)
+          if (cleaned !== details.url) return callback({ redirectURL: cleaned })
+        }
       }
 
       let blocked = false
@@ -114,8 +140,6 @@ export class PrivacyEngine {
   private installFingerprintGuard(): void {
     if (!this.settings.get('fingerprintProtection')) return
 
-    // FIXED: merge with existing headers instead of replacing them entirely
-    // Previously this replaced ALL headers including Content-Type, breaking Vite's module serving
     this.sess.webRequest.onHeadersReceived((details, callback) => {
       // Never modify localhost responses (Vite dev server)
       if (details.url.startsWith('http://localhost') || details.url.startsWith('ws://localhost')) {
@@ -124,7 +148,6 @@ export class PrivacyEngine {
 
       callback({
         responseHeaders: {
-          // Spread existing headers first, then add/override ours
           ...details.responseHeaders,
           'Permissions-Policy': [
             'camera=(), microphone=(), geolocation=()',

@@ -88,6 +88,124 @@ export interface LensProfile {
   defaultAITab: AIPanelTab; hotkey?: string; builtIn: boolean
 }
 
+// ─── Nine Tails ───────────────────────────────────────────────────────────────
+// Append to src/shared/types.ts
+
+export type TailId =
+  | 'watcher'
+  | 'courier'
+  | 'focus'
+  | 'hibernate'
+  | 'archivist'
+  | 'shield'
+  | 'relay'
+  | 'harvest'
+  | 'mirror'
+
+export type TailEventType =
+  | 'fire' | 'route' | 'block' | 'sleep' | 'skip'
+  | 'snap' | 'restore' | 'clean' | 'index' | 'surface'
+  | 'capture' | 'sync' | 'info' | 'config' | 'warn'
+
+export interface TailEvent {
+  id: string
+  tailId: TailId
+  type: TailEventType
+  message: string
+  timestamp: number
+  metadata?: Record<string, unknown>
+}
+
+export type TailTrigger =
+  // Watcher
+  | 'dom_change' | 'new_comment' | 'front_page' | 'keyword_match' | 'price_change'
+  // Courier
+  | 'url_open' | 'url_pattern' | 'tab_create'
+  // Focus
+  | 'time_window' | 'tab_open' | 'domain_visit'
+  // Hibernate
+  | 'memory_threshold' | 'idle_time' | 'tab_age' | 'battery_level'
+  // Archivist
+  | 'time_interval' | 'workspace_close' | 'manual_tag' | 'battery_warn'
+  // Shield
+  | 'request_type' | 'cname_detected' | 'utm_param' | 'webrtc_request'
+  // Relay
+  | 'bookmark_add' | 'focus_start' | 'focus_end'
+  // Harvest
+  | 'page_load' | 'tab_idle'
+  // Mirror
+  | 'highlight' | 'dom_ready'
+
+export type TailAction =
+  // Watcher
+  | 'notify' | 'notify_sidebar' | 'run_command' | 'play_sound'
+  // Courier
+  | 'route_workspace' | 'route_group' | 'set_lens' | 'defer_hibernate'
+  // Focus
+  | 'block' | 'hibernate' | 'redirect' | 'allow_once'
+  // Hibernate
+  | 'wake_on_focus'
+  // Archivist
+  | 'snapshot' | 'snapshot_tagged' | 'prune_old'
+  // Shield
+  | 'strip' | 'disable_api' | 'log'
+  // Relay
+  | 'post_webhook' | 'push_slack' | 'append_notion' | 'update_gist'
+  // Harvest
+  | 'index' | 'index_tag' | 'surface_related'
+  // Mirror
+  | 'capture_schema' | 'append_note' | 'sync_vault' | 'surface_vault'
+
+export interface TailRule {
+  id: string
+  tailId: TailId
+  label: string
+  pattern: string          // URL glob or domain pattern
+  trigger: TailTrigger
+  action: TailAction
+  active: boolean
+  params?: Record<string, unknown>   // action-specific config (webhook URL, vault path, etc.)
+  createdAt: number
+}
+
+export interface TailSnapshot {
+  id: string
+  index: number
+  label: string            // 'auto' or user tag
+  tabCount: number
+  workspaceIds: string[]
+  groupIds: string[]
+  tabSummaries: Array<{ tabId: string; url: string; title: string; summary?: string }>
+  createdAt: number
+  tag?: string             // manual label e.g. 'before client call'
+}
+
+export interface TailStats {
+  watcher:   { fired: number; watching: number; domains: number }
+  courier:   { routed: number; rules: number; conflicts: number }
+  focus:     { blocked: number; window: string; nextBreak: string }
+  hibernate: { hibernated: number; mbSaved: number; protected: number }
+  archivist: { snapshots: number; oldestDays: number; lastRestore: string }
+  shield:    { blocked: number; cleaned: number; cloaked: number }
+  relay:     { fired: number; endpoints: number; errors: number }
+  harvest:   { indexed: number; sessions: number; topics: number }
+  mirror:    { captured: number; synced: number; vault: string }
+}
+
+export interface TailState {
+  id: TailId
+  enabled: boolean
+  progress: number          // 0–100, activity level indicator
+  events: TailEvent[]       // rolling last 100 events
+  rules: TailRule[]
+  stats: Partial<TailStats[TailId]>
+}
+
+export interface NineTailsState {
+  tails: Record<TailId, TailState>
+  activeEvents: TailEvent[] // cross-tail merged feed
+}
+
 export type IPCChannel =
   | 'tab:create' | 'tab:close' | 'tab:navigate' | 'tab:activate'
   | 'tab:hibernate' | 'tab:wake' | 'tab:update' | 'tab:list'
@@ -110,7 +228,11 @@ export type IPCChannel =
   | 'cmd:history.list' | 'cmd:history.clear' | 'cmd:undo'
   | 'cmd:commands.list'
   | 'command:ui'
+  | 'ninetails:get-state' | 'ninetails:set-tail-enabled' | 'ninetails:add-rule' | 'ninetails:update-rule'
+  | 'ninetails:delete-rule' | 'ninetails:get-events' | 'ninetails:get-snapshots' | 'ninetails:restore-snapshot'
+  | 'ninetails:create-snapshot' | 'ninetails:tail-event'
 
+  
 // ─── Appearance system ────────────────────────────────────────────
 
 export type ThemeBase = 'dark' | 'light' | 'system' | 'midnight' | 'forest' | 'volcano' | 'ocean' | 'dusk'
