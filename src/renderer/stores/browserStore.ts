@@ -47,7 +47,8 @@ interface BrowserState {
 
   aiPanelOpen: boolean
   aiPanelTab: AIPanelTab
-  aiSummaries: Map<string, AISummary>
+  // FIX: was Map<string, AISummary> which requires Immer MapSet plugin — use plain Record instead
+  aiSummaries: Record<string, AISummary>
   chatMessages: ChatMessage[]
   chatLoading: boolean
 
@@ -102,7 +103,6 @@ interface BrowserState {
   closeSettings:       () => void
   toggleCleave:        () => void
   toggleFileSearch:    () => void
-  // REPL — no modal hide/show, stays inline alongside the webpage
   toggleREPL:          () => void
   openREPL:            () => void
   closeREPL:           () => void
@@ -127,7 +127,9 @@ export const useBrowserStore = create<BrowserState>()(
     sidebarHidden: false, sidebarWidth: 240,
 
     aiPanelOpen: false, aiPanelTab: 'summary',
-    aiSummaries: new Map(), chatMessages: [], chatLoading: false,
+    // FIX: plain Record, not Map — Immer handles Records without the MapSet plugin
+    aiSummaries: {},
+    chatMessages: [], chatLoading: false,
 
     commandPaletteOpen: false, settingsOpen: false, cleaveOpen: false,
     fileSearchOpen: false, replOpen: false, nineTailsOpen: false,
@@ -255,7 +257,8 @@ export const useBrowserStore = create<BrowserState>()(
       TabIPC.setAIPanelWidth(next ? 340 : 0).catch(console.error)
     },
     setAIPanelTab:  (tab)  => set(s => { s.aiPanelTab = tab }),
-    cacheAISummary: (tabId, summary) => set(s => { s.aiSummaries.set(tabId, summary) }),
+    // FIX: Record assignment, not Map.set()
+    cacheAISummary: (tabId, summary) => set(s => { s.aiSummaries[tabId] = summary }),
 
     sendChatMessage: async (content) => {
       const userMsg: ChatMessage = {
@@ -288,7 +291,7 @@ export const useBrowserStore = create<BrowserState>()(
 
     toggleReadingMode: () => set(s => { s.readingMode = !s.readingMode }),
 
-    // ── UI modals — these hide the BrowserView while open ────────
+    // ── UI modals ────────────────────────────────────────────────
     openCommandPalette:  () => { TabIPC.modalOpen(); set(s => { s.commandPaletteOpen = true }) },
     closeCommandPalette: () => { TabIPC.modalClose(); set(s => { s.commandPaletteOpen = false }) },
     openSettings:        () => { TabIPC.modalOpen(); set(s => { s.settingsOpen = true }) },
@@ -304,15 +307,12 @@ export const useBrowserStore = create<BrowserState>()(
       set(s => { s.fileSearchOpen = next })
     },
 
-    // ── REPL — inline bottom bar, never hides the BrowserView ────
-    // Do NOT call TabIPC.modalOpen/Close here. The REPL overlays the
-    // bottom of the screen and is designed to work alongside the
-    // live webpage — hiding the BrowserView would defeat the purpose.
+    // ── REPL — inline, never hides BrowserView ────────────────
     toggleREPL: () => set(s => { s.replOpen = !s.replOpen }),
     openREPL:   () => set(s => { s.replOpen = true }),
     closeREPL:  () => set(s => { s.replOpen = false }),
 
-    // ── Nine Tails — full modal, does hide BrowserView ───────────
+    // ── Nine Tails ────────────────────────────────────────────
     toggleNineTails: () => {
       const next = !get().nineTailsOpen
       if (next) TabIPC.modalOpen(); else TabIPC.modalClose()
@@ -424,6 +424,32 @@ export const useBrowserStore = create<BrowserState>()(
         console.log('[NineTails notification]', title, body, url)
       })
 
+      // ── Highlight capture from SelectionCapture.ts ─────────────
+      // When user right-clicks / uses floating toolbar → Save to Kitsune Notes,
+      // SelectionCapture sends 'ninetails:mirror-highlight'.
+      // We open the AI panel to Notes tab and fire a DOM event that NotesTab listens for.
+      window.kitsune.on('ninetails:mirror-highlight' as any, (d: any) => {
+        if (!d?.text?.trim() || d.text.trim().length < 5) return
+        const store = get()
+        // Open panel and switch to notes tab
+        if (!store.aiPanelOpen) {
+          store.toggleAIPanel()
+        }
+        store.setAIPanelTab('notes')
+        // Fire custom DOM event after a short delay (panel needs to mount)
+        setTimeout(() => {
+          window.dispatchEvent(
+            new CustomEvent('kitsune:highlight', { detail: { text: d.text.trim() } })
+          )
+        }, 120)
+      })
+
+      // ── Inject-chat from context menu "Summarize with AI" ───────
+      window.kitsune.on('kitsune:inject-chat' as any, (...args: unknown[]) => {
+        const { message } = args[0] as { message: string }
+        get().sendChatMessage(message)
+      })
+
       window.kitsune.on('settings:update' as any, (updated: unknown) => {
         set(s => { s.settings = updated as KitsuneSettings })
         get().applySettingsToDOM()
@@ -454,9 +480,7 @@ export const useBrowserStore = create<BrowserState>()(
         }
       })
 
-      // Always ensure the BrowserView is visible on boot.
-      // Recovers from any prior session that called modalOpen but
-      // never called modalClose (crash, force-quit, etc.).
+      // Always ensure the BrowserView is visible on boot
       TabIPC.modalClose().catch(console.error)
     },
   }))

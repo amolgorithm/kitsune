@@ -2,7 +2,7 @@
 // Smart Universal File Search
 // - Upload PDFs, docs, spreadsheets, code, text files
 // - Natural language queries across all files
-// - Summarize, compare, extract via HackClub AI
+// - Summarize, compare, extract via HackClub AI (routed through main process)
 // - Links results to current browsing context
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { useBrowserStore, useActiveTab } from '../../stores/browserStore'
@@ -45,12 +45,9 @@ async function extractText(file: File): Promise<string> {
   const type = getFileType(file.name)
 
   if (type === 'pdf') {
-    // Read as ArrayBuffer and extract text via PDF.js if available,
-    // otherwise fall back to reading raw bytes for text content
     return new Promise((resolve) => {
       const reader = new FileReader()
       reader.onload = () => {
-        // Basic PDF text extraction — strip binary, keep ASCII runs
         const buf = reader.result as ArrayBuffer
         const bytes = new Uint8Array(buf)
         let text = ''
@@ -59,7 +56,6 @@ async function extractText(file: File): Promise<string> {
           if (c >= 32 && c < 127) text += String.fromCharCode(c)
           else if (c === 10 || c === 13) text += ' '
         }
-        // Extract text between BT/ET markers (PDF text objects)
         const chunks: string[] = []
         const btEt = /BT([\s\S]*?)ET/g
         let m: RegExpExecArray | null
@@ -70,14 +66,15 @@ async function extractText(file: File): Promise<string> {
             .trim()
           if (segment.length > 3) chunks.push(segment)
         }
-        const result = chunks.length > 0 ? chunks.join('\n') : text.replace(/[^\x20-\x7E\n]/g, '').replace(/\s+/g, ' ')
+        const result = chunks.length > 0
+          ? chunks.join('\n')
+          : text.replace(/[^\x20-\x7E\n]/g, '').replace(/\s+/g, ' ')
         resolve(result.slice(0, 50000))
       }
       reader.readAsArrayBuffer(file)
     })
   }
 
-  // Text-based files: just read as text
   return new Promise((resolve) => {
     const reader = new FileReader()
     reader.onload = () => resolve((reader.result as string).slice(0, 50000))
@@ -87,10 +84,10 @@ async function extractText(file: File): Promise<string> {
 
 function getFileType(name: string): FileType {
   const ext = name.split('.').pop()?.toLowerCase() ?? ''
-  if (ext === 'pdf')                              return 'pdf'
+  if (ext === 'pdf')                                return 'pdf'
   if (['doc', 'docx', 'odt', 'rtf'].includes(ext)) return 'doc'
   if (['xls', 'xlsx', 'csv', 'tsv'].includes(ext)) return 'spreadsheet'
-  if (['eml', 'msg'].includes(ext))               return 'email'
+  if (['eml', 'msg'].includes(ext))                return 'email'
   if (['js', 'ts', 'tsx', 'jsx', 'py', 'rb', 'go', 'rs', 'java', 'c', 'cpp', 'h', 'cs', 'swift', 'kt'].includes(ext)) return 'code'
   if (['txt', 'md', 'mdx', 'rst', 'log'].includes(ext)) return 'text'
   return 'other'
@@ -101,21 +98,41 @@ function fileIcon(type: FileType) {
   return <IconFile size={16} />
 }
 
-// ─── AI query against file corpus ─────────────────────────────────
+// ─── AI query via main-process proxy ──────────────────────────────
+// renderer fetch() cannot reach external hosts in Electron's sandboxed
+// renderer process — all requests must go through electron.net in main.
+
+async function aiProxyFetch(
+  model: string,
+  msgs: Array<{ role: string; content: string }>,
+  maxTokens: number,
+): Promise<unknown> {
+  const result = await window.kitsune.invoke('ai:proxy-fetch' as any, {
+    url: 'https://ai.hackclub.com/proxy/v1/chat/completions',
+    body: JSON.stringify({
+      model,
+      messages: msgs,
+      max_tokens: maxTokens,
+    }),
+  }) as { ok: boolean; status?: number; body?: string; error?: string }
+
+  if (!result.ok) {
+    throw new Error(result.error ?? `AI error ${result.status}: ${(result.body ?? '').slice(0, 200)}`)
+  }
+
+  return JSON.parse(result.body!)
+}
 
 async function queryFiles(
   prompt: string,
   files: IndexedFile[],
-  apiKey: string,
   model: string,
   pageContext?: string,
 ): Promise<QueryResult> {
   if (files.length === 0) throw new Error('No files indexed')
 
-  // Build context: include all file text up to ~12k chars total
-  let budget = 12000
   const fileDocs = files.map(f => {
-    const chunk = f.text.slice(0, Math.floor(budget / files.length))
+    const chunk = f.text.slice(0, Math.floor(12000 / files.length))
     return `### File: ${f.name}\n${chunk}`
   }).join('\n\n---\n\n')
 
@@ -128,26 +145,16 @@ Return JSON: {
   "linkedToPage": "How this relates to current page (or null)"
 }`
 
-  const res = await fetch('https://ai.hackclub.com/proxy/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: `Files:\n${fileDocs}\n\nQuestion: ${prompt}` },
-      ],
-      max_tokens: 1500,
-    }),
-  })
+  const data = await aiProxyFetch(
+    model,
+    [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: `Files:\n${fileDocs}\n\nQuestion: ${prompt}` },
+    ],
+    1500,
+  ) as any
 
-  if (!res.ok) throw new Error(`AI error ${res.status}`)
-  const data = await res.json()
-  const raw  = data.choices[0]?.message?.content ?? '{}'
-
+  const raw = data.choices?.[0]?.message?.content ?? '{}'
   try {
     return JSON.parse(raw)
   } catch {
@@ -157,27 +164,24 @@ Return JSON: {
 
 async function summarizeFile(
   file: IndexedFile,
-  apiKey: string,
   model: string,
 ): Promise<string> {
-  const res = await fetch('https://ai.hackclub.com/proxy/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model,
-      messages: [
-        { role: 'system', content: 'Summarize this file in 3-5 bullet points. Be concise and specific. Return plain text.' },
-        { role: 'user', content: `File: ${file.name}\n\n${file.text.slice(0, 8000)}` },
-      ],
-      max_tokens: 400,
-    }),
-  })
-  if (!res.ok) throw new Error(`AI error ${res.status}`)
-  const data = await res.json()
-  return data.choices[0]?.message?.content ?? ''
+  const data = await aiProxyFetch(
+    model,
+    [
+      {
+        role: 'system',
+        content: 'Summarize this file in 3-5 bullet points. Be concise and specific. Return plain text.',
+      },
+      {
+        role: 'user',
+        content: `File: ${file.name}\n\n${file.text.slice(0, 8000)}`,
+      },
+    ],
+    400,
+  ) as any
+
+  return data.choices?.[0]?.message?.content ?? ''
 }
 
 // ─── Component ────────────────────────────────────────────────────
@@ -186,17 +190,16 @@ export function FileSearch() {
   const toggleFileSearch = useBrowserStore(s => s.toggleFileSearch)
   const settings         = useBrowserStore(s => s.settings)
   const activeTab        = useActiveTab()
-  const tabs             = useBrowserStore(s => s.tabs)
 
-  const [files, setFiles]           = useState<IndexedFile[]>([])
-  const [query, setQuery]           = useState('')
-  const [result, setResult]         = useState<QueryResult | null>(null)
-  const [loading, setLoading]       = useState(false)
-  const [error, setError]           = useState<string | null>(null)
-  const [indexing, setIndexing]     = useState<string | null>(null)
+  const [files, setFiles]             = useState<IndexedFile[]>([])
+  const [query, setQuery]             = useState('')
+  const [result, setResult]           = useState<QueryResult | null>(null)
+  const [loading, setLoading]         = useState(false)
+  const [error, setError]             = useState<string | null>(null)
+  const [indexing, setIndexing]       = useState<string | null>(null)
   const [summarizing, setSummarizing] = useState<string | null>(null)
-  const [activeFile, setActiveFile] = useState<string | null>(null)
-  const [dragOver, setDragOver]     = useState(false)
+  const [activeFile, setActiveFile]   = useState<string | null>(null)
+  const [dragOver, setDragOver]       = useState(false)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -248,7 +251,6 @@ export function FileSearch() {
     setResult(null)
 
     try {
-      // Get page context if a tab is active
       const pageContext = activeTab && activeTab.url !== 'kitsune://newtab'
         ? `${activeTab.title}: ${activeTab.url}`
         : undefined
@@ -256,7 +258,6 @@ export function FileSearch() {
       const res = await queryFiles(
         query,
         files,
-        settings.hackclubApiKey,
         settings.aiModel,
         pageContext,
       )
@@ -271,7 +272,7 @@ export function FileSearch() {
   const handleSummarize = async (file: IndexedFile) => {
     setSummarizing(file.id)
     try {
-      const summary = await summarizeFile(file, settings.hackclubApiKey, settings.aiModel)
+      const summary = await summarizeFile(file, settings.aiModel)
       setFiles(prev => prev.map(f => f.id === file.id ? { ...f, summary } : f))
     } catch (e) {
       setError((e as any).message ?? String(e))
@@ -512,8 +513,7 @@ export function FileSearch() {
                 <div className={styles.resultActions}>
                   <button className={styles.resultAction}
                     onClick={() => {
-                      const content = result.answer
-                      navigator.clipboard.writeText(content)
+                      navigator.clipboard.writeText(result.answer)
                     }}>
                     <IconNote size={12} /> Copy answer
                   </button>
@@ -556,7 +556,7 @@ export function FileSearch() {
 }
 
 function formatSize(bytes: number): string {
-  if (bytes < 1024)       return `${bytes}B`
+  if (bytes < 1024)        return `${bytes}B`
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)}KB`
   return `${(bytes / (1024 * 1024)).toFixed(1)}MB`
 }
@@ -564,7 +564,7 @@ function formatSize(bytes: number): string {
 function LoadingDots() {
   return (
     <div style={{ display: 'flex', gap: 3, alignItems: 'center' }}>
-      {[0,1,2].map(i => (
+      {[0, 1, 2].map(i => (
         <div key={i} style={{
           width: 4, height: 4, borderRadius: '50%',
           background: 'currentColor', opacity: 0.6,

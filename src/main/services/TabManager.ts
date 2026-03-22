@@ -5,6 +5,7 @@ import type { KitsuneTab } from '../../shared/types'
 import type { WorkspaceManager } from './WorkspaceManager'
 import type { SettingsStore } from './SettingsStore'
 import type { NineTailsEngine } from './NineTailsEngine'
+import { wireSelectionCapture } from '../../renderer/components/AIPanel/SelectionCapture'
 
 interface CreateTabOptions {
   url: string
@@ -263,22 +264,15 @@ export class TabManager {
     this.repositionAll()
   }
 
-  /**
-   * Apply a multi-pane layout.
-   * Each non-AI leaf pane gets a BrowserView positioned in its rectangle.
-   * The pane title bars (28px) are rendered by React so we must offset Y by that amount.
-   */
   applyLayout(panes: PaneRegion[]): void {
     if (this.viewHidden) return
 
-    // Remove all current BrowserViews before repositioning
     for (const view of this.views.values()) {
       try { this.window.removeBrowserView(view) } catch { /* ignore */ }
     }
 
     this.currentPanes = panes
 
-    // Single pane — just show active tab normally
     if (panes.length <= 1) {
       this.currentPanes = []
       const view = this.activeTabId ? this.views.get(this.activeTabId) : null
@@ -295,17 +289,11 @@ export class TabManager {
     const contentW    = winW - SIDEBAR_W - this.aiPanelWidth
     const contentH    = winH - CHROME_TOP - Math.max(BOTTOM_H, this.replHeight)
 
-    // Filter to only real (non-AI) panes
     const realPanes = panes.filter(p => !p.isAIPane)
     const paneCount = realPanes.length
 
     if (paneCount === 0) return
 
-    // Determine split direction from the layout context
-    // We'll detect based on how many panes we have and position them accordingly
-    // For now: horizontal split (side by side) by default
-    // The actual direction comes from the layout tree stored in currentPanes
-    // Since we only get leaf panes here, we use a simple even horizontal split
     const paneW = Math.floor(contentW / paneCount)
 
     realPanes.forEach((pane, i) => {
@@ -320,7 +308,6 @@ export class TabManager {
             this.window.addBrowserView(view)
             this.repositionView(view, {
               x:      contentLeft + i * paneW,
-              // Add PANE_TITLEBAR_H offset — React renders a title bar above each pane
               y:      contentTop + PANE_TITLEBAR_H,
               width:  paneW,
               height: contentH - PANE_TITLEBAR_H,
@@ -343,10 +330,6 @@ export class TabManager {
     })
   }
 
-  /**
-   * Apply a layout from a full PaneNode tree, correctly handling
-   * horizontal vs vertical splits and recursive nesting.
-   */
   applyLayoutFromTree(node: any, bounds: { x: number; y: number; width: number; height: number }): void {
     if (this.viewHidden) return
 
@@ -359,7 +342,6 @@ export class TabManager {
       const view = this.views.get(tabId)
       if (!view) return
 
-      // The pane has a 28px title bar rendered in React, offset BrowserView below it
       const adjusted = {
         x:      bounds.x,
         y:      bounds.y + PANE_TITLEBAR_H,
@@ -372,7 +354,6 @@ export class TabManager {
       return
     }
 
-    // Split node — recurse into children
     const children = node.children ?? []
     const sizes = node.sizes ?? children.map(() => 100 / children.length)
     const total = sizes.reduce((a: number, b: number) => a + b, 0)
@@ -511,6 +492,9 @@ export class TabManager {
         id, canGoBack: wc.canGoBack(), canGoForward: wc.canGoForward(),
       })
     })
+
+    // ── Wire selection capture (floating toolbar + context menu) ──
+    wireSelectionCapture(wc, this.window, id)
   }
 
   private pushTabUpdate(tab: KitsuneTab): void {

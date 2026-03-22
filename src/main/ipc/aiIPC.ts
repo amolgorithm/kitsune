@@ -86,4 +86,23 @@ export function registerAIIPC(
   ipcMain.handle('ai:generate-note', async (_e, params: any) => {
     return ai.generateNote(params)
   })
+
+  ipcMain.handle('ai:proxy-fetch', async (_e, { url, body }: { url: string; body: string }) => {
+    try {
+      const { net } = require('electron')
+      const key = ai['settings'].get('hackclubApiKey')
+      const res = await net.fetch(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${key}`,
+          'Content-Type': 'application/json',
+        },
+        body,
+      })
+      const text = await res.text()
+      return { ok: res.ok, status: res.status, body: text }
+    } catch (err: any) {
+      return { ok: false, error: err.message }
+    }
+  })
 }

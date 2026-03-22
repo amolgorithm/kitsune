@@ -7,27 +7,15 @@ import {
   IconClose, IconSparkle, IconArrowRight, IconSummary, IconResearch,
   IconNote, IconTask, IconChatBubble, IconExternal,
 } from '../Icons'
-import { Humanizer } from './Humanizer'
+import { NotesTab } from './NotesTab'
 import styles from './AIPanel.module.css'
 
-function IconHumanize({ size = 12 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 16 16" fill="none"
-      stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="8" cy="5.5" r="2.5" />
-      <path d="M3 14c0-2.8 2.2-5 5-5s5 2.2 5 5" />
-      <path d="M12.5 3.5l1 1M13.5 5.5h1" strokeWidth={1} opacity={0.55} />
-    </svg>
-  )
-}
-
 const TABS = [
-  { id: 'summary',   label: 'Summary',  icon: (s: number) => <IconSummary    size={s} /> },
-  { id: 'research',  label: 'Research', icon: (s: number) => <IconResearch   size={s} /> },
-  { id: 'notes',     label: 'Notes',    icon: (s: number) => <IconNote       size={s} /> },
-  { id: 'tasks',     label: 'Tasks',    icon: (s: number) => <IconTask       size={s} /> },
-  { id: 'chat',      label: 'Chat',     icon: (s: number) => <IconChatBubble size={s} /> },
-  { id: 'humanizer', label: 'Humanize', icon: (s: number) => <IconHumanize   size={s} /> },
+  { id: 'summary',  label: 'Summary',  icon: (s: number) => <IconSummary    size={s} /> },
+  { id: 'research', label: 'Research', icon: (s: number) => <IconResearch   size={s} /> },
+  { id: 'notes',    label: 'Notes',    icon: (s: number) => <IconNote       size={s} /> },
+  { id: 'tasks',    label: 'Tasks',    icon: (s: number) => <IconTask       size={s} /> },
+  { id: 'chat',     label: 'Chat',     icon: (s: number) => <IconChatBubble size={s} /> },
 ] as const
 
 export function AIPanel() {
@@ -49,7 +37,6 @@ export function AIPanel() {
   const chatEndRef = useRef<HTMLDivElement>(null)
   const tabsRef    = useRef<HTMLDivElement>(null)
 
-  // Check overflow whenever panel mounts or resizes
   useEffect(() => {
     const el = tabsRef.current
     if (!el) return
@@ -57,7 +44,6 @@ export function AIPanel() {
     check()
     const ro = new ResizeObserver(check)
     ro.observe(el)
-    // Also re-check on scroll (arrow should hide when fully scrolled)
     el.addEventListener('scroll', check)
     return () => { ro.disconnect(); el.removeEventListener('scroll', check) }
   }, [])
@@ -72,7 +58,8 @@ export function AIPanel() {
 
   useEffect(() => {
     if (!activeTab || panelTab !== 'summary') return
-    const cached = aiSummaries.get(activeTab.id)
+    // FIX: aiSummaries is now a plain Record, not a Map
+    const cached = aiSummaries[activeTab.id]
     if (cached) { setSummary(cached); return }
     if (activeTab.status !== 'ready' || activeTab.url === 'kitsune://newtab') return
 
@@ -90,7 +77,7 @@ export function AIPanel() {
     setChatInput('')
   }
 
-  const isHumanizer = panelTab === 'humanizer'
+  const isNotes = panelTab === 'notes'
 
   return (
     <aside className={`${styles.panel} k-slide-right`}>
@@ -101,8 +88,8 @@ export function AIPanel() {
           <div>
             <div className={styles.headerTitle}>Kitsune AI</div>
             <div className={styles.headerSub}>
-              {isHumanizer
-                ? 'Text Humanizer'
+              {isNotes
+                ? 'Notes'
                 : activeTab?.url === 'kitsune://newtab'
                   ? 'New Tab'
                   : (activeTab?.title?.slice(0, 28) ?? 'No page')
@@ -115,7 +102,7 @@ export function AIPanel() {
         </button>
       </div>
 
-      {/* Tab bar — scrollable with visible right arrow when overflowing */}
+      {/* Tab bar */}
       <div className={styles.tabsWrapper}>
         <div className={styles.tabs} ref={tabsRef}>
           {TABS.map(t => (
@@ -124,7 +111,6 @@ export function AIPanel() {
               className={[
                 styles.tab,
                 panelTab === t.id ? styles.tabActive : '',
-                t.id === 'humanizer' ? styles.tabHumanizer : '',
               ].filter(Boolean).join(' ')}
               onClick={() => setPanelTab(t.id as any)}
             >
@@ -136,16 +122,15 @@ export function AIPanel() {
         <button
           className={[styles.tabScrollBtn, !canScrollTabs ? styles.tabScrollBtnHidden : ''].join(' ')}
           onClick={scrollTabsRight}
-          title="More tabs"
           tabIndex={canScrollTabs ? 0 : -1}
-        >
-          ›
-        </button>
+        >›</button>
       </div>
 
-      {/* Content */}
-      {isHumanizer ? (
-        <Humanizer />
+      {/* Content — Notes gets full height, others get scrollable area */}
+      {isNotes ? (
+        <div style={{ flex: 1, overflow: 'hidden', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+          <NotesTab />
+        </div>
       ) : (
         <>
           <div className={styles.content}>
@@ -153,10 +138,6 @@ export function AIPanel() {
             {panelTab === 'research' && (
               <PlaceholderTab icon={<IconResearch size={28} />} title="Cross-Page Research"
                 desc="Open multiple tabs on a topic and synthesize them into a single cited document." />
-            )}
-            {panelTab === 'notes' && (
-              <PlaceholderTab icon={<IconNote size={28} />} title="Smart Notes"
-                desc="Highlight text on any page — AI converts it into a structured note with citation." />
             )}
             {panelTab === 'tasks' && (
               <PlaceholderTab icon={<IconTask size={28} />} title="Task Extraction"

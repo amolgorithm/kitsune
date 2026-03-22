@@ -28,9 +28,6 @@ export function registerTabIPC(
   })
   ipcMain.handle('tab:get-sidebar-width', async () => tabManager.getSidebarWidth())
 
-  // REPL height — shrinks BrowserView from the bottom so the native
-  // Chromium layer never overlaps the inline REPL bar.
-  // Called whenever REPL opens (with its height) or closes (with 0).
   ipcMain.handle('tab:set-repl-height', async (_e, height: number) => {
     tabManager.setReplHeight(height)
   })
@@ -42,10 +39,29 @@ export function registerTabIPC(
   ipcMain.handle('tab:modal-open',  () => tabManager.hideActiveView())
   ipcMain.handle('tab:modal-close', () => tabManager.showActiveView())
 
+  // ── Text selection relay ──────────────────────────────────────
+  // The preload script fires this when the user selects text inside
+  // any BrowserView page. We resolve the real tabId from the
+  // webContents that sent the event, then forward to the shell
+  // renderer so the AI panel can react.
+  ipcMain.handle('ninetails:page-highlight', (event, _rawTabId: string, text: string, url: string) => {
+    // Resolve which tab this came from by matching webContents id
+    const senderId   = event.sender.id
+    const allTabs    = tabManager.listTabs()
+    const matchedTab = allTabs.find(t => {
+      const view = (tabManager as any).views?.get(t.id)
+      return view?.webContents?.id === senderId
+    })
+    const tabId = matchedTab?.id ?? tabManager.getActiveTabId() ?? 'unknown'
+
+    // Forward to the shell renderer (AI panel listens here)
+    win.webContents.send('ninetails:page-highlight', tabId, text, url)
+
+    // Also notify NineTails engine if available
+    nineTailsEngine?.onHighlight(tabId, text, url)
+  })
+
   ipcMain.handle('ninetails:page-mutation', (_e, tabId: string, url: string, ruleId: string) => {
     nineTailsEngine?.onPageMutation(tabId, url, ruleId)
-  })
-  ipcMain.handle('ninetails:page-highlight', (_e, tabId: string, text: string, url: string) => {
-    nineTailsEngine?.onHighlight(tabId, text, url)
   })
 }
