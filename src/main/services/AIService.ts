@@ -1,22 +1,29 @@
 // src/main/services/AIService.ts
-// Uses HackClub AI proxy (free, OpenAI-compatible API)
-// Endpoint: https://ai.hackclub.com/proxy/v1
 import type {
   AISummary, CrossPageSummary, ChatMessage,
-  TaskItem, SmartNote, Citation,
+  TaskItem, SmartNote,
 } from '../../shared/types'
 import { AI_CONTEXT_MAX_CHARS } from '../../shared/constants'
 import type { SettingsStore } from './SettingsStore'
 import { randomUUID } from 'crypto'
 
-// HackClub AI uses OpenAI-compatible API format
 const HACKCLUB_BASE = 'https://ai.hackclub.com/proxy/v1'
 
 interface OAIMessage { role: string; content: string }
-interface OAIResponse { choices: Array<{ message: { content: string } }>; model: string }
 
 export class AIService {
-  constructor(private readonly settings: SettingsStore) {}
+  private net: any
+
+  constructor(private readonly settings: SettingsStore) {
+    // electron.net uses Chromium's network stack — correct DNS, respects
+    // system proxy, works where Node fetch fails with EAI_AGAIN.
+    try {
+      this.net = require('electron').net
+      console.log('[AIService] electron.net loaded, fetch available:', typeof this.net?.fetch)
+    } catch (e) {
+      console.error('[AIService] failed to load electron.net:', e)
+    }
+  }
 
   // ─── Core API call ───────────────────────────────────────────────
 
@@ -24,26 +31,48 @@ export class AIService {
     this.assertReady()
     const key   = this.settings.get('hackclubApiKey')
     const model = this.settings.get('aiModel')
+    const url   = `${HACKCLUB_BASE}/chat/completions`
 
-    const res = await fetch(`${HACKCLUB_BASE}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${key}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ model, messages, max_tokens: maxTokens }),
-    })
+    console.log(`[AIService] calling ${url} model=${model}`)
+
+    if (!this.net?.fetch) {
+      throw new Error('electron.net.fetch not available — cannot make AI calls from main process')
+    }
+
+    let res: Response
+    try {
+      res = await this.net.fetch(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${key}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ model, messages, max_tokens: maxTokens }),
+      })
+    } catch (err: any) {
+      const cause = err?.cause?.message ?? String(err?.cause ?? '')
+      console.error('[AIService] net.fetch error:', err.message, cause)
+      throw new Error(`Network error: ${err.message}${cause ? ` (${cause})` : ''}`)
+    }
 
     if (!res.ok) {
-      const err = await res.text().catch(() => res.statusText)
-      throw new Error(`AI API error ${res.status}: ${err}`)
+      const body = await res.text().catch(() => res.statusText)
+      console.error(`[AIService] HTTP ${res.status}:`, body)
+      throw new Error(`AI returned ${res.status}: ${body}`)
     }
 
-    const data: OAIResponse = await res.json()
-    return {
-      text:  data.choices[0]?.message?.content ?? '',
-      model: data.model ?? model,
-    }
+    const data = await res.json() as any
+    const text = data.choices?.[0]?.message?.content ?? ''
+    console.log(`[AIService] OK length=${text.length}`)
+    return { text, model: data.model ?? model }
+  }
+
+  private parseJSON(raw: string): any {
+    const cleaned = raw
+      .replace(/^```(?:json)?\s*/im, '')
+      .replace(/\s*```$/im, '')
+      .trim()
+    return JSON.parse(cleaned)
   }
 
   // ─── Page Summary ───────────────────────────────────────────────
@@ -55,17 +84,14 @@ export class AIService {
     const { text: raw, model } = await this.call([
       {
         role: 'system',
-        content: `You are a web page summarizer. Extract:
-1. keyPoints: 3-5 bullet points covering the main ideas
-2. stats: notable numbers/data (up to 5, empty array if none)
-3. links: external sources mentioned (up to 5, empty array if none)
-Respond ONLY with valid JSON: {"keyPoints":["..."],"stats":["..."],"links":[{"text":"...","url":"..."}]}`
+        content: `You are a web page summarizer. Respond ONLY with valid JSON:
+{"keyPoints":["3-5 bullet points"],"stats":["notable numbers, empty if none"],"links":[{"text":"label","url":"https://..."}]}`,
       },
       { role: 'user', content: `Title: ${params.title}\nURL: ${params.url}\n\n${text}` },
     ], 800)
 
     try {
-      const parsed = JSON.parse(raw)
+      const parsed = this.parseJSON(raw)
       return {
         tabId: params.tabId, url: params.url, title: params.title,
         keyPoints: parsed.keyPoints ?? [], stats: parsed.stats ?? [], links: parsed.links ?? [],
@@ -87,20 +113,20 @@ Respond ONLY with valid JSON: {"keyPoints":["..."],"stats":["..."],"links":[{"te
     pages: Array<{ tabId: string; url: string; title: string; text: string }>
   }): Promise<CrossPageSummary> {
     const pagesCtx = params.pages
-      .map((p, i) => `## Source [${i+1}]: ${p.title}\nURL: ${p.url}\n${p.text.slice(0, 2000)}`)
+      .map((p, i) => `## Source [${i + 1}]: ${p.title}\nURL: ${p.url}\n${p.text.slice(0, 2000)}`)
       .join('\n\n---\n\n')
 
     const { text: raw } = await this.call([
       {
         role: 'system',
-        content: `Synthesize multiple web pages into a cohesive research summary. Use [1],[2] inline citations referencing source numbers.
-Return ONLY valid JSON: {"content":"Markdown summary with [n] citations","citations":[{"id":"1","title":"...","url":"...","excerpt":"..."}]}`
+        content: `Synthesize multiple web pages into a research summary using [1],[2] citations.
+Return ONLY valid JSON: {"content":"Markdown with citations","citations":[{"id":"1","title":"...","url":"...","excerpt":"..."}]}`,
       },
-      { role: 'user', content: `Research topic: ${params.topic}\n\nSources:\n${pagesCtx}` },
+      { role: 'user', content: `Topic: ${params.topic}\n\n${pagesCtx}` },
     ], 2000)
 
     try {
-      const parsed = JSON.parse(raw)
+      const parsed = this.parseJSON(raw)
       return {
         id: randomUUID(), tabIds: params.pages.map(p => p.tabId),
         topic: params.topic, content: parsed.content, citations: parsed.citations ?? [],
@@ -116,18 +142,14 @@ Return ONLY valid JSON: {"content":"Markdown summary with [n] citations","citati
 
   // ─── Chat ───────────────────────────────────────────────────────
 
-  async chat(params: {
-    messages: ChatMessage[]; pageContext?: string
-  }): Promise<string> {
-    const systemParts = [
-      'You are Kitsune AI, an intelligent browser assistant. Help users with research, summarization, navigation, and productivity. Be concise and useful.',
-    ]
-    if (params.pageContext) {
-      systemParts.push(`\nCurrent page content (first 3000 chars):\n${params.pageContext}`)
-    }
+  async chat(params: { messages: ChatMessage[]; pageContext?: string }): Promise<string> {
+    const system = [
+      'You are Kitsune AI, an intelligent browser assistant. Be concise and useful.',
+      ...(params.pageContext ? [`\nCurrent page (first 3000 chars):\n${params.pageContext}`] : []),
+    ].join('\n')
 
     const { text } = await this.call([
-      { role: 'system', content: systemParts.join('\n') },
+      { role: 'system', content: system },
       ...params.messages.map(m => ({ role: m.role, content: m.content })),
     ], 1000)
 
@@ -140,19 +162,16 @@ Return ONLY valid JSON: {"content":"Markdown summary with [n] citations","citati
     Array<{ label: string; color: string; tabIds: string[] }>
   > {
     if (tabs.length < 2) return []
-
-    const tabList = tabs.map((t, i) => `${i+1}. [${t.id}] ${t.title} — ${t.url}`).join('\n')
-
+    const tabList = tabs.map((t, i) => `${i + 1}. [${t.id}] ${t.title} — ${t.url}`).join('\n')
     const { text: raw } = await this.call([
       {
         role: 'system',
-        content: `Group browser tabs into 2-5 logical clusters by topic/purpose. Labels max 3 words. Use distinct hex colors.
-Return ONLY valid JSON array: [{"label":"Short name","color":"#hexcolor","tabIds":["id1","id2"]}]`
+        content: `Group these browser tabs into 2-5 clusters. Return ONLY valid JSON array:
+[{"label":"Short name (max 3 words)","color":"#hexcolor","tabIds":["id1","id2"]}]`,
       },
       { role: 'user', content: tabList },
     ], 600)
-
-    try { return JSON.parse(raw) } catch { return [] }
+    try { return this.parseJSON(raw) } catch { return [] }
   }
 
   // ─── Task Extraction ────────────────────────────────────────────
@@ -161,13 +180,12 @@ Return ONLY valid JSON array: [{"label":"Short name","color":"#hexcolor","tabIds
     const { text: raw } = await this.call([
       {
         role: 'system',
-        content: 'Extract actionable to-do items from the text. Return ONLY valid JSON: [{"text":"Action item","dueAt":null}]. If no tasks, return [].'
+        content: 'Extract actionable to-do items. Return ONLY valid JSON: [{"text":"item","dueAt":null}]. Empty array if none.',
       },
       { role: 'user', content: text },
     ], 400)
-
     try {
-      const parsed: Array<{ text: string; dueAt: number | null }> = JSON.parse(raw)
+      const parsed: Array<{ text: string; dueAt: number | null }> = this.parseJSON(raw)
       return parsed.map(item => ({
         id: randomUUID(), text: item.text, dueAt: item.dueAt ?? undefined,
         done: false, createdAt: Date.now(), workspaceId,
@@ -181,7 +199,7 @@ Return ONLY valid JSON array: [{"label":"Short name","color":"#hexcolor","tabIds
     if (!this.settings.get('aiRiskScoringEnabled')) return 0
     try {
       const { text: raw } = await this.call([
-        { role: 'system', content: 'Rate the malicious risk of this URL from 0.0 (safe) to 1.0 (dangerous). Consider phishing patterns, suspicious TLDs, misleading domains. Respond with ONLY a decimal number like 0.1 or 0.85.' },
+        { role: 'system', content: 'Rate this URL risk 0.0 (safe) to 1.0 (dangerous). Reply with ONLY a decimal number.' },
         { role: 'user', content: url },
       ], 10)
       const score = parseFloat(raw.trim())
@@ -197,25 +215,22 @@ Return ONLY valid JSON array: [{"label":"Short name","color":"#hexcolor","tabIds
     const { text: raw } = await this.call([
       {
         role: 'system',
-        content: 'Convert highlighted text into a structured Markdown research note with a clear title, organized content, and proper citation. Return ONLY valid JSON: {"content":"# Title\\n\\nMarkdown...","tags":["tag1","tag2"]}'
+        content: 'Convert highlighted text into a structured Markdown note. Return ONLY valid JSON: {"content":"# Title\\n\\nMarkdown...","tags":["tag1"]}',
       },
       {
         role: 'user',
-        content: `Highlighted text:\n"${params.highlightedText}"\n\nSource: ${params.pageTitle}\n${params.pageUrl}`,
+        content: `Text: "${params.highlightedText}"\nSource: ${params.pageTitle} — ${params.pageUrl}`,
       },
     ], 600)
 
     let parsed: { content: string; tags: string[] }
-    try { parsed = JSON.parse(raw) }
+    try { parsed = this.parseJSON(raw) }
     catch { parsed = { content: `# Note\n\n${params.highlightedText}`, tags: [] } }
 
     return {
       id: randomUUID(), workspaceId: params.workspaceId,
       content: parsed.content, tags: parsed.tags,
-      citations: [{
-        id: randomUUID(), title: params.pageTitle, url: params.pageUrl,
-        excerpt: params.highlightedText.slice(0, 200),
-      }],
+      citations: [{ id: randomUUID(), title: params.pageTitle, url: params.pageUrl, excerpt: params.highlightedText.slice(0, 200) }],
       sourceUrl: params.pageUrl, createdAt: Date.now(), updatedAt: Date.now(),
     }
   }
@@ -234,6 +249,6 @@ Return ONLY valid JSON array: [{"label":"Short name","color":"#hexcolor","tabIds
 
   private assertReady(): void {
     if (!this.settings.get('aiEnabled')) throw new Error('AI disabled in settings')
-    if (!this.settings.get('hackclubApiKey')) throw new Error('No API key set. Add it in Settings → AI.')
+    if (!this.settings.get('hackclubApiKey')) throw new Error('No API key set. Go to Settings → AI.')
   }
 }

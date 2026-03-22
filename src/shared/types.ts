@@ -25,7 +25,7 @@ export interface Bookmark {
   tags: string[]; addedAt: number
 }
 
-export type AIPanelTab = 'summary' | 'research' | 'notes' | 'tasks' | 'chat'
+export type AIPanelTab = 'summary' | 'research' | 'notes' | 'tasks' | 'chat' | 'humanizer'
 
 export interface AISummary {
   tabId: string; url: string; title: string; keyPoints: string[]
@@ -232,7 +232,7 @@ export type IPCChannel =
   | 'ninetails:delete-rule' | 'ninetails:get-events' | 'ninetails:get-snapshots' | 'ninetails:restore-snapshot'
   | 'ninetails:create-snapshot' | 'ninetails:tail-event'
 
-  
+
 // ─── Appearance system ────────────────────────────────────────────
 
 export type ThemeBase = 'dark' | 'light' | 'system' | 'midnight' | 'forest' | 'volcano' | 'ocean' | 'dusk'
@@ -334,7 +334,7 @@ export interface KitsuneSettings {
 }
 
 export const DEFAULT_SETTINGS: KitsuneSettings = {
-  hackclubApiKey: 'sk-hc-v1-dce4361dac14412aaada4c6fc55bdf3dbc7d35292247494db9f25686229cbbf2',
+  hackclubApiKey: '',
   aiModel:        'google/gemini-2.5-flash',
   aiEnabled:      true,
 

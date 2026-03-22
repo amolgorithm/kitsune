@@ -5,10 +5,11 @@ import { SettingsIPC } from '../../lib/ipc'
 import type { KitsuneSettings, AppearanceSettings, AccentPreset, BackgroundStyle, TextureStyle, AnimationStyle, ThemeBase } from '../../../shared/types'
 import { DEFAULT_APPEARANCE } from '../../../shared/types'
 import { MacroEditor } from '../MacroEditor/MacroEditor'
-import { IconMoon, IconSun, IconMonitor, IconSidebarLeft, IconSidebarRight, IconAnimNone, IconBubble, IconAurora, IconParticle, IconRipple, IconGrain, IconMesh, IconGradientLinear, IconDotGrid, IconLineGrid, IconNoise } from '../Icons'
 import {
-  IconSparkle, IconTab, IconShield, IconPalette,
-  IconHotkey, IconInfo, IconClose, IconCheck,
+  IconMoon, IconSun, IconMonitor, IconSidebarLeft, IconSidebarRight,
+  IconAnimNone, IconBubble, IconAurora, IconParticle, IconRipple,
+  IconGrain, IconMesh, IconGradientLinear, IconDotGrid, IconLineGrid, IconNoise,
+  IconSparkle, IconTab, IconShield, IconPalette, IconHotkey, IconInfo, IconClose, IconCheck,
 } from '../Icons'
 import styles from './SettingsModal.module.css'
 
@@ -40,10 +41,9 @@ export function SettingsModal() {
   const [settings, setSettings] = useState<KitsuneSettings | null>(null)
   const [saved, setSaved]       = useState(false)
   const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'ok' | 'fail'>('idle')
+  const [testError,  setTestError]  = useState('')
 
-  useEffect(() => {
-    SettingsIPC.get().then(setSettings)
-  }, [])
+  useEffect(() => { SettingsIPC.get().then(setSettings) }, [])
 
   useEffect(() => {
     const h = (e: KeyboardEvent) => { if (e.key === 'Escape') closeSettings() }
@@ -53,33 +53,35 @@ export function SettingsModal() {
 
   const update = async <K extends keyof KitsuneSettings>(key: K, value: KitsuneSettings[K]) => {
     if (!settings) return
-    const updated = { ...settings, [key]: value }
-    setSettings(updated)
+    setSettings({ ...settings, [key]: value })
     await SettingsIPC.set({ [key]: value })
     setSaved(true)
     setTimeout(() => setSaved(false), 1500)
   }
 
+  // Route through main process (electron.net) — renderer fetch can't reach external hosts
   const testAI = async () => {
     if (!settings) return
     setTestStatus('testing')
+    setTestError('')
     try {
-      const res = await fetch('https://ai.hackclub.com/proxy/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${settings.hackclubApiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: settings.aiModel,
-          messages: [{ role: 'user', content: 'Reply with just: OK' }],
-          max_tokens: 5,
-        }),
-      })
-      if (res.ok) setTestStatus('ok')
-      else setTestStatus('fail')
-    } catch { setTestStatus('fail') }
-    setTimeout(() => setTestStatus('idle'), 3000)
+      const result = await window.kitsune.invoke('ai:test-connection' as any, {
+        apiKey: settings.hackclubApiKey,
+        model: settings.aiModel,
+      }) as { ok: boolean; status?: number; body?: string; error?: string }
+
+      console.log('[Settings] test result:', result)
+      if (result.ok) {
+        setTestStatus('ok')
+      } else {
+        setTestError(result.error ?? `HTTP ${result.status}: ${(result.body ?? '').slice(0, 150)}`)
+        setTestStatus('fail')
+      }
+    } catch (e: any) {
+      setTestError(e.message)
+      setTestStatus('fail')
+    }
+    setTimeout(() => { setTestStatus('idle'); setTestError('') }, 6000)
   }
 
   if (!settings) return null
@@ -93,23 +95,17 @@ export function SettingsModal() {
             <button className={styles.closeBtn} onClick={closeSettings}><IconClose size={13} /></button>
           </div>
           {NAV.map(item => (
-            <button
-              key={item.id}
+            <button key={item.id}
               className={`${styles.navItem} ${section === item.id ? styles.navActive : ''}`}
-              onClick={() => setSection(item.id)}
-            >
+              onClick={() => setSection(item.id)}>
               {item.icon}<span>{item.label}</span>
             </button>
           ))}
-          {saved && (
-            <div className={styles.savedBadge}>
-              <IconCheck size={11} /> Saved
-            </div>
-          )}
+          {saved && <div className={styles.savedBadge}><IconCheck size={11} /> Saved</div>}
         </nav>
 
         <div className={styles.content}>
-          {section === 'ai'         && <AISection         s={settings} update={update} testAI={testAI} testStatus={testStatus} />}
+          {section === 'ai'         && <AISection         s={settings} update={update} testAI={testAI} testStatus={testStatus} testError={testError} />}
           {section === 'tabs'       && <TabsSection       s={settings} update={update} />}
           {section === 'privacy'    && <PrivacySection    s={settings} update={update} />}
           {section === 'appearance' && <AppearanceSection s={settings} update={update} />}
@@ -124,9 +120,9 @@ export function SettingsModal() {
 
 type U = <K extends keyof KitsuneSettings>(key: K, value: KitsuneSettings[K]) => void
 
-function AISection({ s, update, testAI, testStatus }: {
-  s: KitsuneSettings; update: U;
-  testAI: () => void; testStatus: string
+function AISection({ s, update, testAI, testStatus, testError }: {
+  s: KitsuneSettings; update: U
+  testAI: () => void; testStatus: string; testError: string
 }) {
   return (
     <div className={styles.section}>
@@ -136,30 +132,31 @@ function AISection({ s, update, testAI, testStatus }: {
       <Row label="Enable AI" desc="Master switch for all AI-powered features">
         <Toggle on={s.aiEnabled} onChange={v => update('aiEnabled', v)} />
       </Row>
-      <Row label="HackClub API Key" desc="Pre-filled with shared key. You can use your own from ai.hackclub.com">
-        <div className={styles.keyRow}>
-          <input
-            type="password"
-            className={styles.textInput}
-            defaultValue={s.hackclubApiKey}
-            onBlur={e => update('hackclubApiKey', e.target.value)}
-            placeholder="sk-hc-v1-…"
-          />
-          <button
-            className={`${styles.testBtn} ${styles[`testBtn_${testStatus}`]}`}
-            onClick={testAI}
-            disabled={testStatus === 'testing'}
-          >
-            {testStatus === 'testing' ? '…' : testStatus === 'ok' ? '✓ OK' : testStatus === 'fail' ? '✗ Fail' : 'Test'}
-          </button>
+
+      <Row label="HackClub API Key" desc="Get a key from ai.hackclub.com if the default stops working">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <div className={styles.keyRow}>
+            <input type="password" className={styles.textInput}
+              defaultValue={s.hackclubApiKey}
+              onBlur={e => update('hackclubApiKey', e.target.value)}
+              placeholder="sk-hc-v1-…" />
+            <button
+              className={`${styles.testBtn} ${testStatus !== 'idle' ? (styles as any)[`testBtn_${testStatus}`] ?? '' : ''}`}
+              onClick={testAI}
+              disabled={testStatus === 'testing'}>
+              {testStatus === 'testing' ? '…' : testStatus === 'ok' ? '✓ OK' : testStatus === 'fail' ? '✗ Fail' : 'Test'}
+            </button>
+          </div>
+          {testError && (
+            <div style={{ fontSize: 10, color: 'var(--k-red)', fontFamily: 'var(--k-font-mono)', wordBreak: 'break-all', lineHeight: 1.4 }}>
+              {testError}
+            </div>
+          )}
         </div>
       </Row>
+
       <Row label="AI Model" desc="Model to use for summaries, chat, and research">
-        <Select
-          value={s.aiModel}
-          options={AI_MODELS}
-          onChange={v => update('aiModel', v)}
-        />
+        <Select value={s.aiModel} options={AI_MODELS} onChange={v => update('aiModel', v)} />
       </Row>
       <Row label="AI Tab Grouping" desc="Automatically cluster open tabs by topic">
         <Toggle on={s.autoGroupTabs} onChange={v => update('autoGroupTabs', v)} accent="ai" />
@@ -180,28 +177,22 @@ function TabsSection({ s, update }: { s: KitsuneSettings; update: U }) {
         <Toggle on={s.autoHibernateEnabled} onChange={v => update('autoHibernateEnabled', v)} />
       </Row>
       <Row label="Hibernate After" desc="How long a tab must be idle before hibernation">
-        <Select
-          value={String(s.hibernateAfterMs)}
+        <Select value={String(s.hibernateAfterMs)} onChange={v => update('hibernateAfterMs', parseInt(v))}
           options={[
             { value: '300000',  label: '5 minutes' },
             { value: '600000',  label: '10 minutes' },
             { value: '1800000', label: '30 minutes' },
             { value: '3600000', label: '1 hour' },
-          ]}
-          onChange={v => update('hibernateAfterMs', parseInt(v))}
-        />
+          ]} />
       </Row>
       <Row label="Memory Cap per Tab" desc="Trigger early hibernation when tab exceeds this">
-        <Select
-          value={String(s.maxActiveTabMemoryMB)}
+        <Select value={String(s.maxActiveTabMemoryMB)} onChange={v => update('maxActiveTabMemoryMB', parseInt(v))}
           options={[
             { value: '150',  label: '150 MB' },
             { value: '300',  label: '300 MB (default)' },
             { value: '500',  label: '500 MB' },
             { value: '1000', label: '1 GB' },
-          ]}
-          onChange={v => update('maxActiveTabMemoryMB', parseInt(v))}
-        />
+          ]} />
       </Row>
     </div>
   )
@@ -211,10 +202,7 @@ function PrivacySection({ s, update }: { s: KitsuneSettings; update: U }) {
   return (
     <div className={styles.section}>
       <h2 className={styles.sectionTitle}>Privacy & Security</h2>
-      <div className={styles.securityBadge}>
-        <IconShield size={13} />
-        LibreWolf-equivalent protection active
-      </div>
+      <div className={styles.securityBadge}><IconShield size={13} />LibreWolf-equivalent protection active</div>
       <Row label="Block Trackers" desc="Block known tracking scripts and ad networks">
         <Toggle on={s.trackerBlockingEnabled} onChange={v => update('trackerBlockingEnabled', v)} />
       </Row>
@@ -233,19 +221,17 @@ function PrivacySection({ s, update }: { s: KitsuneSettings; update: U }) {
 
 function AppearanceSection({ s, update }: { s: KitsuneSettings; update: U }) {
   const a = s.appearance ?? DEFAULT_APPEARANCE
-  const updateA = (patch: Partial<AppearanceSettings>) => {
-    update('appearance', { ...a, ...patch })
-  }
+  const updateA = (patch: Partial<AppearanceSettings>) => update('appearance', { ...a, ...patch })
 
-  const THEMES: Array<{ id: ThemeBase; label: string; icon: React.ReactNode; dark: boolean }> = [
-    { id: 'dark',     label: 'Dark',     icon: <IconMoon size={14} />,    dark: true  },
-    { id: 'light',    label: 'Light',    icon: <IconSun size={14} />,     dark: false },
-    { id: 'system',   label: 'System',   icon: <IconMonitor size={14} />, dark: true  },
-    { id: 'midnight', label: 'Midnight', icon: <IconMoon size={14} />,    dark: true  },
-    { id: 'forest',   label: 'Forest',   icon: <IconMoon size={14} />,    dark: true  },
-    { id: 'volcano',  label: 'Volcano',  icon: <IconMoon size={14} />,    dark: true  },
-    { id: 'ocean',    label: 'Ocean',    icon: <IconMoon size={14} />,    dark: true  },
-    { id: 'dusk',     label: 'Dusk',     icon: <IconMoon size={14} />,    dark: true  },
+  const THEMES: Array<{ id: ThemeBase; label: string; icon: React.ReactNode }> = [
+    { id: 'dark',     label: 'Dark',     icon: <IconMoon size={14} />    },
+    { id: 'light',    label: 'Light',    icon: <IconSun size={14} />     },
+    { id: 'system',   label: 'System',   icon: <IconMonitor size={14} /> },
+    { id: 'midnight', label: 'Midnight', icon: <IconMoon size={14} />    },
+    { id: 'forest',   label: 'Forest',   icon: <IconMoon size={14} />    },
+    { id: 'volcano',  label: 'Volcano',  icon: <IconMoon size={14} />    },
+    { id: 'ocean',    label: 'Ocean',    icon: <IconMoon size={14} />    },
+    { id: 'dusk',     label: 'Dusk',     icon: <IconMoon size={14} />    },
   ]
 
   const ACCENTS: Array<{ id: AccentPreset; color: string; label: string }> = [
@@ -260,21 +246,21 @@ function AppearanceSection({ s, update }: { s: KitsuneSettings; update: U }) {
     { id: 'custom',  color: a.accentCustom, label: 'Custom' },
   ]
 
-  const BG_OPTIONS: Array<{ id: BackgroundStyle; label: string; icon: React.ReactNode }> = [
-    { id: 'plain',            label: 'Plain',       icon: <div style={{width:20,height:14,background:'var(--k-bg)',borderRadius:3,border:'1px solid var(--k-border)'}} /> },
-    { id: 'gradient-linear',  label: 'Linear',      icon: <IconGradientLinear size={16} /> },
-    { id: 'gradient-mesh',    label: 'Mesh',        icon: <IconMesh size={16} /> },
-    { id: 'gradient-accent',  label: 'Accent Glow', icon: <IconMesh size={16} /> },
-    { id: 'dots',             label: 'Dots',        icon: <IconDotGrid size={16} /> },
-    { id: 'grid',             label: 'Grid',        icon: <IconLineGrid size={16} /> },
-    { id: 'noise',            label: 'Noise',       icon: <IconNoise size={16} /> },
+  const BG_OPTIONS: Array<{ id: BackgroundStyle; label: string }> = [
+    { id: 'plain',           label: 'Plain'       },
+    { id: 'gradient-linear', label: 'Linear'      },
+    { id: 'gradient-mesh',   label: 'Mesh'        },
+    { id: 'gradient-accent', label: 'Accent Glow' },
+    { id: 'dots',            label: 'Dots'        },
+    { id: 'grid',            label: 'Grid'        },
+    { id: 'noise',           label: 'Noise'       },
   ]
 
-  const TEXTURES: Array<{ id: TextureStyle; label: string; icon: React.ReactNode }> = [
-    { id: 'smooth',       label: 'Smooth',       icon: <div style={{width:28,height:18,background:'var(--k-surface-2)',borderRadius:3}} /> },
-    { id: 'grain-light',  label: 'Light Grain',  icon: <IconGrain size={14} /> },
-    { id: 'grain-medium', label: 'Medium Grain', icon: <IconGrain size={14} /> },
-    { id: 'grain-heavy',  label: 'Heavy Grain',  icon: <IconGrain size={14} /> },
+  const TEXTURES: Array<{ id: TextureStyle; label: string }> = [
+    { id: 'smooth',       label: 'Smooth'      },
+    { id: 'grain-light',  label: 'Light Grain' },
+    { id: 'grain-medium', label: 'Medium Grain'},
+    { id: 'grain-heavy',  label: 'Heavy Grain' },
   ]
 
   const ANIMS: Array<{ id: AnimationStyle; label: string; desc: string; icon: React.ReactNode }> = [
@@ -296,17 +282,10 @@ function AppearanceSection({ s, update }: { s: KitsuneSettings; update: U }) {
         <div className={styles.appearGroupLabel}>Theme</div>
         <div className={styles.themeGrid}>
           {THEMES.map(t => (
-            <button key={t.id}
-              className={`${styles.themeChip} ${a.themeBase === t.id ? styles.themeChipActive : ''}`}
+            <button key={t.id} className={`${styles.themeChip} ${a.themeBase === t.id ? styles.themeChipActive : ''}`}
               onClick={() => updateA({ themeBase: t.id })}>
               <span className={styles.themeChipIcon}>{t.icon}</span>
               <span>{t.label}</span>
-              {t.id !== 'dark' && t.id !== 'light' && t.id !== 'system' && (
-                <span className={styles.themeChipDot} style={{ background: {
-                  midnight:'#1a1e30', forest:'#162419', volcano:'#241815',
-                  ocean:'#0c1422', dusk:'#17151e',
-                }[t.id] }} />
-              )}
             </button>
           ))}
         </div>
@@ -344,7 +323,6 @@ function AppearanceSection({ s, update }: { s: KitsuneSettings; update: U }) {
             <button key={bg.id}
               className={`${styles.optionChip} ${a.backgroundStyle === bg.id ? styles.optionChipActive : ''}`}
               onClick={() => updateA({ backgroundStyle: bg.id })}>
-              <span className={styles.optionChipIcon}>{bg.icon}</span>
               <span>{bg.label}</span>
             </button>
           ))}
@@ -373,7 +351,6 @@ function AppearanceSection({ s, update }: { s: KitsuneSettings; update: U }) {
             <button key={t.id}
               className={`${styles.optionChip} ${a.textureStyle === t.id ? styles.optionChipActive : ''}`}
               onClick={() => updateA({ textureStyle: t.id })}>
-              <span className={styles.optionChipIcon}>{t.icon}</span>
               <span>{t.label}</span>
             </button>
           ))}
@@ -396,8 +373,7 @@ function AppearanceSection({ s, update }: { s: KitsuneSettings; update: U }) {
         {a.animationStyle !== 'none' && (
           <div className={styles.sliderRow}>
             <span className={styles.sliderLabel}>Intensity</span>
-            <input type="range" min={10} max={100} value={a.animationIntensity}
-              className={styles.slider}
+            <input type="range" min={10} max={100} value={a.animationIntensity} className={styles.slider}
               onChange={e => updateA({ animationIntensity: parseInt(e.target.value) })} />
             <span className={styles.sliderValue}>{a.animationIntensity}%</span>
           </div>
@@ -447,13 +423,11 @@ function AppearanceSection({ s, update }: { s: KitsuneSettings; update: U }) {
         <div className={styles.themeGrid}>
           <button className={`${styles.themeChip} ${s.sidebarPosition === 'left' ? styles.themeChipActive : ''}`}
             onClick={() => update('sidebarPosition', 'left')}>
-            <span className={styles.themeChipIcon}><IconSidebarLeft size={14} /></span>
-            <span>Left</span>
+            <span className={styles.themeChipIcon}><IconSidebarLeft size={14} /></span><span>Left</span>
           </button>
           <button className={`${styles.themeChip} ${s.sidebarPosition === 'right' ? styles.themeChipActive : ''}`}
             onClick={() => update('sidebarPosition', 'right')}>
-            <span className={styles.themeChipIcon}><IconSidebarRight size={14} /></span>
-            <span>Right</span>
+            <span className={styles.themeChipIcon}><IconSidebarRight size={14} /></span><span>Right</span>
           </button>
         </div>
       </div>
@@ -480,14 +454,9 @@ function MacrosSection({ onOpenREPL }: { onOpenREPL: () => void }) {
       <div style={{ padding: '20px 24px 12px', flexShrink: 0 }}>
         <h2 className={styles.sectionTitle}>Macros & Automation</h2>
         <p className={styles.sectionDesc}>
-          Create macros, aliases, workspace programs, and scheduled commands.
-          For interactive control, open the REPL with{' '}
-          <kbd style={{ fontFamily: 'var(--k-font-mono)', fontSize: 11, background: 'var(--k-surface-3)', border: '1px solid var(--k-border-2)', borderRadius: 4, padding: '1px 5px' }}>⌘`</kbd>
-          {' '}or{' '}
-          <button
-            onClick={onOpenREPL}
-            style={{ fontSize: 11, color: 'var(--k-fox)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>
-            click here to open REPL
+          Create macros, aliases, workspace programs, and scheduled commands.{' '}
+          <button onClick={onOpenREPL} style={{ fontSize: 11, color: 'var(--k-fox)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>
+            Open REPL
           </button>
         </p>
       </div>
@@ -520,14 +489,9 @@ function AboutSection() {
     <div className={styles.section}>
       <div className={styles.aboutHeader}>
         <div className={styles.aboutLogoWrap}>
-          <img
-            src={new URL('../../../assets/logo.png', import.meta.url).href}
-            width={40}
-            height={40}
-            alt="Kitsune"
-            draggable={false}
-            style={{ objectFit: 'contain', borderRadius: 10 }}
-          />
+          <img src={new URL('../../../assets/logo.png', import.meta.url).href}
+            width={40} height={40} alt="Kitsune" draggable={false}
+            style={{ objectFit: 'contain', borderRadius: 10 }} />
         </div>
         <div>
           <h2 className={styles.aboutTitle}>Kitsune</h2>
@@ -536,13 +500,10 @@ function AboutSection() {
       </div>
       <p className={styles.aboutDesc}>
         An AI-native, fully programmable browser built on Electron. Fast, private, and intelligent.
-        AI powered by HackClub (free). Privacy by default. Programmable control via the Command Engine.
       </p>
     </div>
   )
 }
-
-// ── Shared controls ────────────────────────────────────────────────
 
 function Row({ label, desc, children }: { label: string; desc: string; children: React.ReactNode }) {
   return (
@@ -556,21 +517,15 @@ function Row({ label, desc, children }: { label: string; desc: string; children:
   )
 }
 
-function Toggle({ on, onChange, accent = 'fox' }: {
-  on: boolean; onChange: (v: boolean) => void; accent?: string
-}) {
+function Toggle({ on, onChange, accent = 'fox' }: { on: boolean; onChange: (v: boolean) => void; accent?: string }) {
   return (
-    <button
-      role="switch" aria-checked={on}
+    <button role="switch" aria-checked={on}
       className={`${styles.toggle} ${on ? (accent === 'ai' ? styles.toggleAI : styles.toggleOn) : styles.toggleOff}`}
-      onClick={() => onChange(!on)}
-    />
+      onClick={() => onChange(!on)} />
   )
 }
 
-function Select({ value, options, onChange }: {
-  value: string; options: Array<{ value: string; label: string }>; onChange: (v: string) => void
-}) {
+function Select({ value, options, onChange }: { value: string; options: Array<{ value: string; label: string }>; onChange: (v: string) => void }) {
   return (
     <select className={styles.select} value={value} onChange={e => onChange(e.target.value)}>
       {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}

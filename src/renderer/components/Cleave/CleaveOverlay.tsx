@@ -1,7 +1,7 @@
 // src/renderer/components/Cleave/CleaveOverlay.tsx
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useBrowserStore, useActiveTab } from '../../stores/browserStore'
-import { CleaveIPC } from '../../lib/ipc'
+import { CleaveIPC, TabIPC } from '../../lib/ipc'
 import { IconClose } from '../Icons'
 import styles from './CleaveOverlay.module.css'
 
@@ -17,41 +17,122 @@ const OPTIONS: Array<{ id: Mode; key: string; title: string; desc: string }> = [
 ]
 
 export function CleaveOverlay() {
-  const toggleCleave = useBrowserStore(s => s.toggleCleave)
-  const activeTab    = useActiveTab()
-  const tabs         = useBrowserStore(s => s.tabs)
+  const toggleCleave    = useBrowserStore(s => s.toggleCleave)
+  const activeTab       = useActiveTab()
+  const tabs            = useBrowserStore(s => s.tabs)
+  const activeWorkspace = useBrowserStore(s => s.activeWorkspaceId)
+  const aiPanelOpen     = useBrowserStore(s => s.aiPanelOpen)
+  const toggleAIPanel   = useBrowserStore(s => s.toggleAIPanel)
+  const setCleaveLayout = useBrowserStore(s => s.setCleaveLayout)
   const [selected, setSelected] = useState<Mode | null>(null)
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const key = e.key.toUpperCase()
+      if (key === 'ESCAPE') { toggleCleave(); return }
+      if (key === 'R') { reset(); return }
+      const opt = OPTIONS.find(o => o.key === key)
+      if (opt) apply(opt.id)
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [tabs, activeTab])
+
+  const workspaceTabs = tabs.filter(t => t.workspaceId === activeWorkspace && !t.hibernated)
+  const otherTab = workspaceTabs.find(t => t.id !== activeTab?.id)
 
   const apply = async (mode: Mode) => {
     setSelected(mode)
-    const otherTab = tabs.find(t => t.id !== activeTab?.id)
 
-    if (mode === 'split-h' || mode === 'split-v') {
-      await CleaveIPC.setLayout({
+    // Close AI panel if open — it conflicts with split layout
+    if (aiPanelOpen && mode !== 'ai-beside') {
+      toggleAIPanel()
+    }
+
+    let layout: any
+
+    if (mode === 'split-h') {
+      layout = {
         id: crypto.randomUUID(), type: 'split',
-        direction: mode === 'split-h' ? 'horizontal' : 'vertical',
-        sizes: [50, 50],
+        direction: 'horizontal', sizes: [50, 50],
         children: [
           { id: crypto.randomUUID(), type: 'leaf', tabId: activeTab?.id },
-          { id: crypto.randomUUID(), type: 'leaf', tabId: otherTab?.id },
+          { id: crypto.randomUUID(), type: 'leaf', tabId: otherTab?.id ?? activeTab?.id },
         ],
-      })
+      }
+    } else if (mode === 'split-v') {
+      layout = {
+        id: crypto.randomUUID(), type: 'split',
+        direction: 'vertical', sizes: [50, 50],
+        children: [
+          { id: crypto.randomUUID(), type: 'leaf', tabId: activeTab?.id },
+          { id: crypto.randomUUID(), type: 'leaf', tabId: otherTab?.id ?? activeTab?.id },
+        ],
+      }
     } else if (mode === 'ai-beside') {
-      await CleaveIPC.setLayout({
+      // Open AI panel if not already open
+      if (!aiPanelOpen) toggleAIPanel()
+      layout = {
         id: crypto.randomUUID(), type: 'split',
         direction: 'horizontal', sizes: [65, 35],
         children: [
           { id: crypto.randomUUID(), type: 'leaf', tabId: activeTab?.id },
           { id: crypto.randomUUID(), type: 'leaf', isAIPane: true },
         ],
-      })
+      }
+    } else if (mode === 'triple') {
+      const tab2 = workspaceTabs.find(t => t.id !== activeTab?.id)
+      if (!aiPanelOpen) toggleAIPanel()
+      layout = {
+        id: crypto.randomUUID(), type: 'split',
+        direction: 'horizontal', sizes: [33, 34, 33],
+        children: [
+          { id: crypto.randomUUID(), type: 'leaf', tabId: tab2?.id ?? activeTab?.id },
+          { id: crypto.randomUUID(), type: 'leaf', tabId: activeTab?.id },
+          { id: crypto.randomUUID(), type: 'leaf', isAIPane: true },
+        ],
+      }
+    } else if (mode === 'workspace') {
+      // Two tabs from current workspace side by side
+      const tab1 = workspaceTabs[0]
+      const tab2 = workspaceTabs[1] ?? workspaceTabs[0]
+      layout = {
+        id: crypto.randomUUID(), type: 'split',
+        direction: 'horizontal', sizes: [50, 50],
+        children: [
+          { id: crypto.randomUUID(), type: 'leaf', tabId: tab1?.id },
+          { id: crypto.randomUUID(), type: 'leaf', tabId: tab2?.id },
+        ],
+      }
+    } else if (mode === 'group') {
+      // Expand two tabs from same group
+      const tab1 = workspaceTabs[0]
+      const tab2 = workspaceTabs[1] ?? workspaceTabs[0]
+      layout = {
+        id: crypto.randomUUID(), type: 'split',
+        direction: 'horizontal', sizes: [50, 50],
+        children: [
+          { id: crypto.randomUUID(), type: 'leaf', tabId: tab1?.id },
+          { id: crypto.randomUUID(), type: 'leaf', tabId: tab2?.id },
+        ],
+      }
     }
 
-    setTimeout(() => toggleCleave(), 200)
+    if (layout) {
+      // Send to main process — this repositions the BrowserViews
+      await CleaveIPC.setLayout(layout)
+      // Update renderer state so ContentArea renders the split dividers
+      setCleaveLayout(layout)
+    }
+
+    toggleCleave()
   }
 
   const reset = async () => {
-    await CleaveIPC.setLayout({ id: 'root', type: 'leaf' })
+    const singleLayout = { id: 'root', type: 'leaf' } as any
+    await CleaveIPC.setLayout(singleLayout)
+    setCleaveLayout(null)
     toggleCleave()
   }
 
@@ -96,6 +177,11 @@ export function CleaveOverlay() {
           <div className={styles.currentTab}>
             <span className={styles.currentTabLabel}>Active:</span>
             <span className={styles.currentTabTitle}>{activeTab.title}</span>
+            {workspaceTabs.length > 1 && (
+              <span className={styles.currentTabLabel} style={{ marginLeft: 12 }}>
+                {workspaceTabs.length} tabs available for split
+              </span>
+            )}
           </div>
         )}
 

@@ -35,6 +35,7 @@ interface BrowserState {
   activeWorkspaceId: string
   settings: KitsuneSettings
   layout: PaneNode | null
+  cleaveLayout: PaneNode | null
   lenses: LensProfile[]
   activeLensId: string
   initError: string | null
@@ -93,6 +94,8 @@ interface BrowserState {
   setActiveLens: (id: string) => void
   toggleReadingMode: () => void
 
+  setCleaveLayout: (layout: PaneNode | null) => void
+
   openCommandPalette:  () => void
   closeCommandPalette: () => void
   openSettings:        () => void
@@ -119,7 +122,7 @@ export const useBrowserStore = create<BrowserState>()(
   immer((set, get) => ({
     tabs: [], activeTabId: null, groups: [], workspaces: [],
     activeWorkspaceId: 'default', settings: DEFAULT_SETTINGS,
-    layout: null, lenses: BUILT_IN_LENSES, activeLensId: LENS_IDS.DEFAULT,
+    layout: null, cleaveLayout: null, lenses: BUILT_IN_LENSES, activeLensId: LENS_IDS.DEFAULT,
     initError: null, navState: {}, bookmarks: [], readingMode: false,
     sidebarHidden: false, sidebarWidth: 240,
 
@@ -216,6 +219,10 @@ export const useBrowserStore = create<BrowserState>()(
     },
     setGroupsFromPush: (groups) => {
       set(s => { s.groups = groups.filter(g => g.workspaceId === s.activeWorkspaceId) })
+    },
+
+    setCleaveLayout: (layout) => {
+      set(s => { s.cleaveLayout = layout && layout.type === 'split' ? layout : null })
     },
 
     // ── Workspaces ──────────────────────────────────────────────
@@ -398,7 +405,10 @@ export const useBrowserStore = create<BrowserState>()(
       Push.onTabNavState(({ id, canGoBack, canGoForward }) => set(s => {
         s.navState[id] = { canGoBack, canGoForward }
       }))
-      Push.onLayoutUpdate(layout => set(s => { s.layout = layout }))
+      Push.onLayoutUpdate(layout => set(s => {
+        s.layout = layout
+        s.cleaveLayout = layout?.type === 'split' ? layout : null
+      }))
       Push.onGroupsUpdate(groups => get().setGroupsFromPush(groups))
 
       Push.onSidebarWidthUpdate(w => {

@@ -4,11 +4,14 @@
   position: relative;
   overflow: hidden;
   background: var(--k-panel-bg);
+  display: flex;
+  flex-direction: column;
 }
 .webviewPlaceholder {
   width: 100%;
   height: 100%;
   position: relative;
+  flex: 1;
 }
 .loadingOverlay {
   position: absolute;
@@ -42,6 +45,91 @@
   justify-content: center;
   gap: 8px;
 }
-.errorIcon { font-size: 40px; }
+.errorIcon  { font-size: 40px; }
 .errorTitle { font-size: var(--k-text-xl); font-weight: var(--k-weight-semibold); }
-.errorSub { font-size: var(--k-text-sm); color: var(--k-text-3); font-family: var(--k-font-mono); }
+.errorSub   { font-size: var(--k-text-sm); color: var(--k-text-3); font-family: var(--k-font-mono); }
+
+/* ── Split pane layout ─────────────────────────────────────────── */
+
+.splitH, .splitV {
+  width: 100%;
+  height: 100%;
+}
+
+/* A single leaf pane */
+.paneLeaf {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  position: relative;
+  background: var(--k-bg);
+  cursor: pointer;
+  transition: background var(--k-duration-fast);
+}
+
+.paneLeafActive {
+  cursor: default;
+}
+
+/* The thin tab bar at the top of each pane */
+.paneTitleBar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px;
+  background: var(--k-surface);
+  border-bottom: 1px solid var(--k-border);
+  flex-shrink: 0;
+  z-index: 2;
+  position: relative;
+}
+
+.paneFavicon {
+  width: 14px;
+  height: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.paneTitle {
+  font-size: 11px;
+  color: var(--k-text-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+
+.paneActiveIndicator {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--k-fox);
+  box-shadow: 0 0 6px var(--k-fox-glow);
+  flex-shrink: 0;
+}
+
+/* The content area inside a pane leaf */
+.paneContent {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  /* BrowserView is positioned over this by main process */
+}
+
+/* AI pane placeholder */
+.aiPanePlaceholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: var(--k-surface);
+  border-left: 1px solid var(--k-border);
+}

@@ -15,6 +15,7 @@ import { HotkeyBar } from './components/HotkeyBar/HotkeyBar'
 import { FileSearch } from './components/FileSearch/FileSearch'
 import { CommandREPL } from './components/CommandREPL/CommandREPL'
 import { NineTails } from './components/NineTails/NineTails'
+
 import './styles/global.css'
 import './styles/tokens.css'
 import './styles/lenses.css'
@@ -104,7 +105,7 @@ export default function App() {
           <StatusBar />
         </div>
       </div>
-
+      
       {cmdOpen        && <CommandPalette />}
       {settingsOpen   && <SettingsModal />}
       {cleaveOpen     && <CleaveOverlay />}

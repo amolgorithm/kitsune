@@ -34,18 +34,67 @@
 }
 .closeBtn:hover { background: var(--k-glass); color: var(--k-text); }
 
-/* Tab bar */
+/* ── Tab bar — scrollable with visible fade + arrow ─────────────── */
+.tabsWrapper {
+  position: relative;
+  border-bottom: 1px solid var(--k-border);
+  flex-shrink: 0;
+}
+
 .tabs {
   display: flex;
-  border-bottom: 1px solid var(--k-border);
-  padding: 0 10px;
-  flex-shrink: 0;
   overflow-x: auto;
+  scroll-behavior: smooth;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  padding: 0 6px;
+  /* Extra right padding so last tab clears the arrow button */
+  padding-right: 30px;
 }
 .tabs::-webkit-scrollbar { display: none; }
+
+/* Right-side gradient fade — tells user content continues */
+.tabsWrapper::after {
+  content: '';
+  position: absolute;
+  right: 28px;
+  top: 0;
+  bottom: 1px; /* sit above border */
+  width: 32px;
+  pointer-events: none;
+  background: linear-gradient(to right, transparent 0%, var(--k-surface) 100%);
+  z-index: 2;
+  transition: opacity 0.2s;
+}
+
+/* Arrow button — always visible, sitting at far right */
+.tabScrollBtn {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 3;
+  background: var(--k-surface);
+  border: none;
+  border-left: 1px solid var(--k-border);
+  cursor: pointer;
+  color: var(--k-text-3);
+  font-size: 10px;
+  transition: color var(--k-transition-fast), background var(--k-transition-fast);
+}
+.tabScrollBtn:hover { color: var(--k-ai-2); background: var(--k-surface-2); }
+.tabScrollBtnHidden { opacity: 0; pointer-events: none; }
+
 .tab {
-  padding: 8px 10px;
-  font-size: 11px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 9px;
+  font-size: 10.5px;
   font-weight: var(--k-weight-medium);
   color: var(--k-text-3);
   border-bottom: 2px solid transparent;
@@ -53,9 +102,14 @@
   transition: var(--k-transition-fast);
   white-space: nowrap;
   cursor: pointer;
+  flex-shrink: 0;
 }
 .tab:hover:not(.tabActive) { color: var(--k-text-2); }
 .tabActive { color: var(--k-ai-2); border-bottom-color: var(--k-ai-2); }
+.tabHumanizer.tabActive {
+  color: var(--k-fox) !important;
+  border-bottom-color: var(--k-fox) !important;
+}
 
 /* Content area */
 .content {
@@ -64,17 +118,19 @@
   padding: 12px;
 }
 
-/* Loading / empty */
-.loadingState {
-  display: flex; flex-direction: column; align-items: center;
-  gap: 10px; padding: 32px 16px; color: var(--k-text-3); font-size: var(--k-text-sm);
-}
-.emptyState {
-  display: flex; flex-direction: column; align-items: center;
-  gap: 8px; padding: 32px 16px; color: var(--k-text-3); font-size: var(--k-text-sm);
+/* Centered empty/loading state */
+.centered {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 32px 16px;
   text-align: center;
 }
-.emptyState span { font-size: 28px; }
+.emptyIcon    { color: var(--k-text-3); }
+.emptyText    { font-size: var(--k-text-sm); color: var(--k-text-3); line-height: 1.6; }
+.loadingLabel { font-size: var(--k-text-sm); color: var(--k-text-3); }
+.placeholderTitle { font-size: var(--k-text-base); font-weight: var(--k-weight-semibold); }
 
 /* Summary */
 .summaryContent { display: flex; flex-direction: column; gap: 10px; }
@@ -95,10 +151,6 @@
 }
 .cardBody { font-size: 12px; color: var(--k-text-2); line-height: 1.65; }
 .bulletList { list-style: none; display: flex; flex-direction: column; gap: 5px; }
-.bullet {
-  display: flex; gap: 7px; font-size: 12px; color: var(--k-text-2); line-height: 1.55;
-}
-.bullet::before { content: '◆'; color: var(--k-ai); font-size: 7px; flex-shrink: 0; margin-top: 5px; }
 .citationLink {
   display: flex; align-items: center; gap: 6px;
   font-size: 11px; color: var(--k-ai-2); padding: 5px 0;
@@ -113,33 +165,10 @@
   font-family: var(--k-font-mono); padding: 4px 0;
 }
 
-/* Placeholder tabs */
-.placeholderTab {
-  display: flex; flex-direction: column; align-items: center;
-  gap: 8px; padding: 32px 16px; text-align: center;
-}
-.placeholderIcon { font-size: 32px; }
-.placeholderTitle { font-size: var(--k-text-base); font-weight: var(--k-weight-semibold); }
-.placeholderDesc { font-size: var(--k-text-sm); color: var(--k-text-3); line-height: 1.6; }
-.placeholderBtn {
-  margin-top: 8px; padding: 7px 16px;
-  border-radius: var(--k-radius-full);
-  background: var(--k-ai-dim); border: 1px solid rgba(124,110,255,0.2);
-  font-size: var(--k-text-sm); color: var(--k-ai-2); cursor: pointer;
-  transition: var(--k-transition);
-}
-.placeholderBtn:hover { background: rgba(124,110,255,0.18); }
-
 /* Chat */
 .chatMessages {
   display: flex; flex-direction: column; gap: 10px; padding-bottom: 8px;
 }
-.chatEmpty {
-  display: flex; flex-direction: column; align-items: center;
-  gap: 8px; padding: 24px 8px; color: var(--k-text-3);
-  font-size: var(--k-text-sm); text-align: center;
-}
-.chatEmpty span { font-size: 20px; color: var(--k-ai-2); }
 .chatMsg { display: flex; gap: 8px; animation: k-slide-up 0.2s var(--k-ease); }
 .chatMsgUser { flex-direction: row-reverse; }
 .chatMsgIcon {
@@ -152,7 +181,7 @@
   max-width: 85%; padding: 9px 12px; border-radius: 12px;
   font-size: 12.5px; line-height: 1.6; color: var(--k-text);
 }
-.chatMsgAI .chatMsgContent  { background: var(--k-surface-2); border: 1px solid var(--k-border); border-radius: 12px 12px 12px 3px; }
+.chatMsgAI  .chatMsgContent { background: var(--k-surface-2); border: 1px solid var(--k-border); border-radius: 12px 12px 12px 3px; }
 .chatMsgUser .chatMsgContent { background: var(--k-ai); color: white; border-radius: 12px 12px 3px 12px; }
 
 /* Chat input */
@@ -187,7 +216,6 @@
 }
 .sendBtn:hover:not(:disabled) { background: var(--k-ai-2); }
 .sendBtn:disabled { opacity: 0.5; cursor: not-allowed; }
-.sendBtnLoading { background: var(--k-surface-3) !important; }
 
 /* Loading dots */
 .dots { display: flex; gap: 4px; align-items: center; padding: 4px 0; }
@@ -195,53 +223,3 @@
   width: 5px; height: 5px; border-radius: var(--k-radius-full);
   background: var(--k-ai-2); animation: k-dot-bounce 1.2s ease-in-out infinite;
 }
-
-/* Research / Notes / Tasks shared form styles */
-.researchSetup { display: flex; flex-direction: column; gap: 12px; padding-bottom: 8px; }
-.researchDesc  { font-size: var(--k-text-xs); color: var(--k-text-3); line-height: 1.6; }
-.formGroup     { display: flex; flex-direction: column; gap: 5px; }
-.formLabel     { font-size: var(--k-text-xs); font-weight: var(--k-weight-semibold); color: var(--k-text-3); text-transform: uppercase; letter-spacing: 0.07em; }
-.formInput, .formTextarea {
-  background: var(--k-surface-3); border: 1px solid var(--k-border-2);
-  border-radius: var(--k-radius-sm); padding: 7px 10px;
-  font-size: var(--k-text-sm); color: var(--k-text); font-family: var(--k-font-ui);
-  outline: none; transition: var(--k-transition);
-}
-.formInput:focus, .formTextarea:focus { border-color: var(--k-ai); }
-.formTextarea { resize: vertical; min-height: 72px; }
-.formHint { font-size: var(--k-text-xs); color: var(--k-text-3); }
-.tabCheckList  { display: flex; flex-direction: column; gap: 4px; max-height: 120px; overflow-y: auto; }
-.tabCheckItem  { display: flex; align-items: center; gap: 8px; font-size: var(--k-text-sm); color: var(--k-text-2); cursor: pointer; padding: 2px 0; }
-.tabCheckItem input { accent-color: var(--k-ai); flex-shrink: 0; }
-.primaryBtn {
-  padding: 8px 14px; border-radius: var(--k-radius-sm); font-size: var(--k-text-sm);
-  font-weight: var(--k-weight-medium); background: var(--k-ai);
-  color: white; cursor: pointer; transition: var(--k-transition);
-  display: flex; align-items: center; justify-content: center; gap: 6px;
-}
-.primaryBtn:hover:not(:disabled) { background: var(--k-ai-2); }
-.primaryBtn:disabled { opacity: 0.45; cursor: not-allowed; }
-.resetBtn {
-  font-size: var(--k-text-sm); color: var(--k-ai-2); background: none;
-  padding: 4px 0; cursor: pointer; text-align: left;
-}
-.markdownBody { font-size: 12px; line-height: 1.7; color: var(--k-text-2); white-space: pre-wrap; }
-.tagRow { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 8px; }
-.tag { background: var(--k-ai-dim); color: var(--k-ai-2); border-radius: var(--k-radius-full); padding: 2px 8px; font-size: var(--k-text-xs); }
-.taskItem { display: flex; align-items: flex-start; gap: 8px; padding: 4px 0; font-size: var(--k-text-sm); color: var(--k-text-2); }
-.taskItem input { accent-color: var(--k-ai); margin-top: 2px; flex-shrink: 0; }
-.taskDone { text-decoration: line-through; opacity: 0.5; }
-.errorState { padding: 12px; display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
-.errorMsg { font-size: var(--k-text-xs); color: var(--k-red); line-height: 1.5; }
-.errorIcon { color: var(--k-yellow); flex-shrink: 0; }
-.configPrompt { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 24px 16px; text-align: center; }
-.configIcon { color: var(--k-yellow); }
-.configTitle { font-size: var(--k-text-base); font-weight: var(--k-weight-semibold); }
-.configDesc { font-size: var(--k-text-sm); color: var(--k-text-3); line-height: 1.5; }
-.configBtn {
-  display: flex; align-items: center; gap: 6px; padding: 7px 14px;
-  border-radius: var(--k-radius-sm); background: var(--k-surface-2);
-  border: 1px solid var(--k-border-2); font-size: var(--k-text-sm);
-  color: var(--k-text); cursor: pointer; transition: var(--k-transition);
-}
-.configBtn:hover { border-color: var(--k-fox); }

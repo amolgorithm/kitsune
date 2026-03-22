@@ -7,7 +7,28 @@ import {
   IconClose, IconSparkle, IconArrowRight, IconSummary, IconResearch,
   IconNote, IconTask, IconChatBubble, IconExternal,
 } from '../Icons'
+import { Humanizer } from './Humanizer'
 import styles from './AIPanel.module.css'
+
+function IconHumanize({ size = 12 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="none"
+      stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="8" cy="5.5" r="2.5" />
+      <path d="M3 14c0-2.8 2.2-5 5-5s5 2.2 5 5" />
+      <path d="M12.5 3.5l1 1M13.5 5.5h1" strokeWidth={1} opacity={0.55} />
+    </svg>
+  )
+}
+
+const TABS = [
+  { id: 'summary',   label: 'Summary',  icon: (s: number) => <IconSummary    size={s} /> },
+  { id: 'research',  label: 'Research', icon: (s: number) => <IconResearch   size={s} /> },
+  { id: 'notes',     label: 'Notes',    icon: (s: number) => <IconNote       size={s} /> },
+  { id: 'tasks',     label: 'Tasks',    icon: (s: number) => <IconTask       size={s} /> },
+  { id: 'chat',      label: 'Chat',     icon: (s: number) => <IconChatBubble size={s} /> },
+  { id: 'humanizer', label: 'Humanize', icon: (s: number) => <IconHumanize   size={s} /> },
+] as const
 
 export function AIPanel() {
   const activeTab      = useActiveTab()
@@ -20,10 +41,30 @@ export function AIPanel() {
   const cacheAISummary = useBrowserStore(s => s.cacheAISummary)
   const aiSummaries    = useBrowserStore(s => s.aiSummaries)
 
-  const [summary, setSummary]           = useState<AISummary | null>(null)
+  const [summary, setSummary]               = useState<AISummary | null>(null)
   const [summaryLoading, setSummaryLoading] = useState(false)
-  const [chatInput, setChatInput]       = useState('')
+  const [chatInput, setChatInput]           = useState('')
+  const [canScrollTabs, setCanScrollTabs]   = useState(false)
+
   const chatEndRef = useRef<HTMLDivElement>(null)
+  const tabsRef    = useRef<HTMLDivElement>(null)
+
+  // Check overflow whenever panel mounts or resizes
+  useEffect(() => {
+    const el = tabsRef.current
+    if (!el) return
+    const check = () => setCanScrollTabs(el.scrollWidth > el.clientWidth + 4)
+    check()
+    const ro = new ResizeObserver(check)
+    ro.observe(el)
+    // Also re-check on scroll (arrow should hide when fully scrolled)
+    el.addEventListener('scroll', check)
+    return () => { ro.disconnect(); el.removeEventListener('scroll', check) }
+  }, [])
+
+  const scrollTabsRight = () => {
+    tabsRef.current?.scrollBy({ left: 100, behavior: 'smooth' })
+  }
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -49,23 +90,23 @@ export function AIPanel() {
     setChatInput('')
   }
 
-  const TABS = [
-    { id: 'summary',  label: 'Summary',  icon: <IconSummary  size={13} /> },
-    { id: 'research', label: 'Research', icon: <IconResearch size={13} /> },
-    { id: 'notes',    label: 'Notes',    icon: <IconNote     size={13} /> },
-    { id: 'tasks',    label: 'Tasks',    icon: <IconTask     size={13} /> },
-    { id: 'chat',     label: 'Chat',     icon: <IconChatBubble size={13} /> },
-  ] as const
+  const isHumanizer = panelTab === 'humanizer'
 
   return (
     <aside className={`${styles.panel} k-slide-right`}>
+      {/* Header */}
       <div className={styles.header}>
         <div className={styles.headerLeft}>
           <div className={styles.aiIcon}><IconSparkle size={13} /></div>
           <div>
             <div className={styles.headerTitle}>Kitsune AI</div>
             <div className={styles.headerSub}>
-              {activeTab?.url === 'kitsune://newtab' ? 'New Tab' : (activeTab?.title?.slice(0, 30) ?? 'No page')}
+              {isHumanizer
+                ? 'Text Humanizer'
+                : activeTab?.url === 'kitsune://newtab'
+                  ? 'New Tab'
+                  : (activeTab?.title?.slice(0, 28) ?? 'No page')
+              }
             </div>
           </div>
         </div>
@@ -74,59 +115,90 @@ export function AIPanel() {
         </button>
       </div>
 
-      <div className={styles.tabs}>
-        {TABS.map(t => (
-          <button
-            key={t.id}
-            className={`${styles.tab} ${panelTab === t.id ? styles.tabActive : ''}`}
-            onClick={() => setPanelTab(t.id)}
-          >
-            {t.icon}
-            <span>{t.label}</span>
-          </button>
-        ))}
-      </div>
-
-      <div className={styles.content}>
-        {panelTab === 'summary'  && <SummaryTab summary={summary} loading={summaryLoading} />}
-        {panelTab === 'research' && <PlaceholderTab icon={<IconResearch size={28} />} title="Cross-Page Research" desc="Open multiple tabs on a topic and synthesize them into a single cited document." />}
-        {panelTab === 'notes'    && <PlaceholderTab icon={<IconNote size={28} />} title="Smart Notes" desc="Highlight text on any page — AI converts it into a structured note with citation." />}
-        {panelTab === 'tasks'    && <PlaceholderTab icon={<IconTask size={28} />} title="Task Extraction" desc="Highlight action items on any page to convert them into tasks." />}
-        {panelTab === 'chat'     && (
-          <ChatTab messages={chatMessages} loading={chatLoading} endRef={chatEndRef} />
-        )}
-      </div>
-
-      {panelTab === 'chat' && (
-        <form className={styles.chatInputArea} onSubmit={handleChat}>
-          <div className={styles.quickBtns}>
-            {['Summarize this page', 'Key takeaways', 'Find related topics'].map(q => (
-              <button key={q} type="button" className={styles.quickBtn}
-                onClick={() => setChatInput(q)}>
-                {q}
-              </button>
-            ))}
-          </div>
-          <div className={styles.chatInputRow}>
-            <textarea
-              className={styles.chatInput}
-              rows={1}
-              placeholder="Ask anything about this page…"
-              value={chatInput}
-              onChange={e => setChatInput(e.target.value)}
-              onKeyDown={e => {
-                if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleChat(e as any) }
-              }}
-            />
-            <button type="submit" className={styles.sendBtn} disabled={chatLoading || !chatInput.trim()}>
-              {chatLoading ? <LoadingDots /> : <IconArrowRight size={13} />}
+      {/* Tab bar — scrollable with visible right arrow when overflowing */}
+      <div className={styles.tabsWrapper}>
+        <div className={styles.tabs} ref={tabsRef}>
+          {TABS.map(t => (
+            <button
+              key={t.id}
+              className={[
+                styles.tab,
+                panelTab === t.id ? styles.tabActive : '',
+                t.id === 'humanizer' ? styles.tabHumanizer : '',
+              ].filter(Boolean).join(' ')}
+              onClick={() => setPanelTab(t.id as any)}
+            >
+              {t.icon(12)}
+              <span>{t.label}</span>
             </button>
+          ))}
+        </div>
+        <button
+          className={[styles.tabScrollBtn, !canScrollTabs ? styles.tabScrollBtnHidden : ''].join(' ')}
+          onClick={scrollTabsRight}
+          title="More tabs"
+          tabIndex={canScrollTabs ? 0 : -1}
+        >
+          ›
+        </button>
+      </div>
+
+      {/* Content */}
+      {isHumanizer ? (
+        <Humanizer />
+      ) : (
+        <>
+          <div className={styles.content}>
+            {panelTab === 'summary'  && <SummaryTab summary={summary} loading={summaryLoading} />}
+            {panelTab === 'research' && (
+              <PlaceholderTab icon={<IconResearch size={28} />} title="Cross-Page Research"
+                desc="Open multiple tabs on a topic and synthesize them into a single cited document." />
+            )}
+            {panelTab === 'notes' && (
+              <PlaceholderTab icon={<IconNote size={28} />} title="Smart Notes"
+                desc="Highlight text on any page — AI converts it into a structured note with citation." />
+            )}
+            {panelTab === 'tasks' && (
+              <PlaceholderTab icon={<IconTask size={28} />} title="Task Extraction"
+                desc="Highlight action items on any page to convert them into tasks." />
+            )}
+            {panelTab === 'chat' && (
+              <ChatTab messages={chatMessages} loading={chatLoading} endRef={chatEndRef} />
+            )}
           </div>
-        </form>
+
+          {panelTab === 'chat' && (
+            <form className={styles.chatInputArea} onSubmit={handleChat}>
+              <div className={styles.quickBtns}>
+                {['Summarize this page', 'Key takeaways', 'Find related topics'].map(q => (
+                  <button key={q} type="button" className={styles.quickBtn}
+                    onClick={() => setChatInput(q)}>{q}</button>
+                ))}
+              </div>
+              <div className={styles.chatInputRow}>
+                <textarea
+                  className={styles.chatInput}
+                  rows={1}
+                  placeholder="Ask anything about this page…"
+                  value={chatInput}
+                  onChange={e => setChatInput(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleChat(e as any) }
+                  }}
+                />
+                <button type="submit" className={styles.sendBtn} disabled={chatLoading || !chatInput.trim()}>
+                  {chatLoading ? <LoadingDots /> : <IconArrowRight size={13} />}
+                </button>
+              </div>
+            </form>
+          )}
+        </>
       )}
     </aside>
   )
 }
+
+// ─── Sub-components ────────────────────────────────────────────────
 
 function SummaryTab({ summary, loading }: { summary: AISummary | null; loading: boolean }) {
   if (loading) return (
@@ -159,8 +231,7 @@ function SummaryTab({ summary, loading }: { summary: AISummary | null; loading: 
         <AICard title="References">
           {summary.links.map((l, i) => (
             <a key={i} href={l.url} className={styles.citationLink} target="_blank" rel="noreferrer">
-              <IconExternal size={10} />
-              <span>{l.text}</span>
+              <IconExternal size={10} /><span>{l.text}</span>
             </a>
           ))}
         </AICard>
@@ -182,9 +253,9 @@ function PlaceholderTab({ icon, title, desc }: { icon: React.ReactNode; title: s
   )
 }
 
-function ChatTab({
-  messages, loading, endRef,
-}: { messages: any[]; loading: boolean; endRef: React.RefObject<HTMLDivElement> }) {
+function ChatTab({ messages, loading, endRef }: {
+  messages: any[]; loading: boolean; endRef: React.RefObject<HTMLDivElement>
+}) {
   return (
     <div className={styles.chatMessages}>
       {messages.length === 0 && (

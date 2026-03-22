@@ -20,9 +20,20 @@ interface PaneRegion {
   isAIPane?: boolean
 }
 
-const CHROME_TOP    = 32 + 48 + 36
+// Chrome heights — must match the CSS tokens exactly
+const TITLEBAR_H = 32   // --k-titlebar-h
+const NAVBAR_H   = 48   // --k-navbar-h
+const LENSBAR_H  = 36   // --k-lensbar-h
+const CHROME_TOP = TITLEBAR_H + NAVBAR_H + LENSBAR_H   // 116px total top chrome
+
+const STATUSBAR_H  = 24   // --k-statusbar-h
+const HOTKEYBAR_H  = 28   // --k-hotkeybar-h
+const BOTTOM_H     = STATUSBAR_H + HOTKEYBAR_H          // 52px total bottom chrome
+
+// Each split pane has a 28px title bar rendered by ContentArea
+const PANE_TITLEBAR_H = 28
+
 let   SIDEBAR_W     = 240
-const BOTTOM_H      = 24 + 28
 const MIN_SIDEBAR_W = 52
 
 export class TabManager {
@@ -30,7 +41,7 @@ export class TabManager {
   private tabs          = new Map<string, KitsuneTab>()
   private activeTabId:  string | null = null
   private aiPanelWidth  = 0
-  private replHeight    = 0          // px reserved at bottom for inline REPL
+  private replHeight    = 0
   private viewHidden    = false
   private currentPanes: PaneRegion[] = []
   private nineTails: NineTailsEngine | null = null
@@ -63,9 +74,6 @@ export class TabManager {
   getSidebarWidth(): number { return SIDEBAR_W }
 
   // ─── REPL height ────────────────────────────────────────────────
-  // CSS z-index cannot beat a native BrowserView (OS-level window).
-  // The only fix is shrinking the BrowserView bounds so it physically
-  // stops where the REPL bar begins. Called by tab:set-repl-height IPC.
 
   setReplHeight(h: number): void {
     this.replHeight = Math.max(0, h)
@@ -255,15 +263,22 @@ export class TabManager {
     this.repositionAll()
   }
 
+  /**
+   * Apply a multi-pane layout.
+   * Each non-AI leaf pane gets a BrowserView positioned in its rectangle.
+   * The pane title bars (28px) are rendered by React so we must offset Y by that amount.
+   */
   applyLayout(panes: PaneRegion[]): void {
     if (this.viewHidden) return
 
+    // Remove all current BrowserViews before repositioning
     for (const view of this.views.values()) {
       try { this.window.removeBrowserView(view) } catch { /* ignore */ }
     }
 
     this.currentPanes = panes
 
+    // Single pane — just show active tab normally
     if (panes.length <= 1) {
       this.currentPanes = []
       const view = this.activeTabId ? this.views.get(this.activeTabId) : null
@@ -274,14 +289,26 @@ export class TabManager {
       return
     }
 
-    const [w, h]    = this.window.getContentSize()
-    const contentW  = w - SIDEBAR_W - this.aiPanelWidth
-    const contentH  = h - CHROME_TOP - Math.max(BOTTOM_H, this.replHeight)
-    const paneCount = panes.filter(p => !p.isAIPane).length
-    const paneWidth = Math.floor(contentW / paneCount)
+    const [winW, winH] = this.window.getContentSize()
+    const contentLeft = SIDEBAR_W
+    const contentTop  = CHROME_TOP
+    const contentW    = winW - SIDEBAR_W - this.aiPanelWidth
+    const contentH    = winH - CHROME_TOP - Math.max(BOTTOM_H, this.replHeight)
 
-    panes.forEach((pane, i) => {
-      if (pane.isAIPane) return
+    // Filter to only real (non-AI) panes
+    const realPanes = panes.filter(p => !p.isAIPane)
+    const paneCount = realPanes.length
+
+    if (paneCount === 0) return
+
+    // Determine split direction from the layout context
+    // We'll detect based on how many panes we have and position them accordingly
+    // For now: horizontal split (side by side) by default
+    // The actual direction comes from the layout tree stored in currentPanes
+    // Since we only get leaf panes here, we use a simple even horizontal split
+    const paneW = Math.floor(contentW / paneCount)
+
+    realPanes.forEach((pane, i) => {
       const tabId = pane.tabId ?? this.activeTabId
       if (!tabId) return
 
@@ -291,7 +318,13 @@ export class TabManager {
           const view = this.views.get(tabId)
           if (view) {
             this.window.addBrowserView(view)
-            this.repositionView(view, { x: SIDEBAR_W + i * paneWidth, y: CHROME_TOP, width: paneWidth, height: contentH })
+            this.repositionView(view, {
+              x:      contentLeft + i * paneW,
+              // Add PANE_TITLEBAR_H offset — React renders a title bar above each pane
+              y:      contentTop + PANE_TITLEBAR_H,
+              width:  paneW,
+              height: contentH - PANE_TITLEBAR_H,
+            })
           }
         })
         return
@@ -299,8 +332,62 @@ export class TabManager {
 
       const view = this.views.get(tabId)
       if (!view) return
+
       this.window.addBrowserView(view)
-      this.repositionView(view, { x: SIDEBAR_W + i * paneWidth, y: CHROME_TOP, width: paneWidth, height: contentH })
+      this.repositionView(view, {
+        x:      contentLeft + i * paneW,
+        y:      contentTop + PANE_TITLEBAR_H,
+        width:  paneW,
+        height: contentH - PANE_TITLEBAR_H,
+      })
+    })
+  }
+
+  /**
+   * Apply a layout from a full PaneNode tree, correctly handling
+   * horizontal vs vertical splits and recursive nesting.
+   */
+  applyLayoutFromTree(node: any, bounds: { x: number; y: number; width: number; height: number }): void {
+    if (this.viewHidden) return
+
+    if (node.type === 'leaf') {
+      if (node.isAIPane) return
+
+      const tabId = node.tabId ?? this.activeTabId
+      if (!tabId) return
+
+      const view = this.views.get(tabId)
+      if (!view) return
+
+      // The pane has a 28px title bar rendered in React, offset BrowserView below it
+      const adjusted = {
+        x:      bounds.x,
+        y:      bounds.y + PANE_TITLEBAR_H,
+        width:  bounds.width,
+        height: Math.max(0, bounds.height - PANE_TITLEBAR_H),
+      }
+
+      this.window.addBrowserView(view)
+      this.repositionView(view, adjusted)
+      return
+    }
+
+    // Split node — recurse into children
+    const children = node.children ?? []
+    const sizes = node.sizes ?? children.map(() => 100 / children.length)
+    const total = sizes.reduce((a: number, b: number) => a + b, 0)
+    const isH   = node.direction === 'horizontal'
+
+    let offset = 0
+    children.forEach((child: any, i: number) => {
+      const ratio  = (sizes[i] ?? 1) / total
+      const childW = isH ? Math.floor(bounds.width * ratio) : bounds.width
+      const childH = isH ? bounds.height                    : Math.floor(bounds.height * ratio)
+      const childX = isH ? bounds.x + offset : bounds.x
+      const childY = isH ? bounds.y          : bounds.y + offset
+
+      this.applyLayoutFromTree(child, { x: childX, y: childY, width: childW, height: childH })
+      offset += isH ? childW : childH
     })
   }
 
@@ -346,10 +433,6 @@ export class TabManager {
 
   private singlePaneBounds() {
     const [w, h] = this.window.getContentSize()
-    // When the REPL is open it occupies the bottom of the window, replacing
-    // the normal bottom chrome. Subtract whichever is larger so the
-    // BrowserView bottom edge always sits exactly at the top of whatever
-    // UI element occupies the bottom — REPL or status bar.
     const bottomReserved = Math.max(BOTTOM_H, this.replHeight)
     return {
       x:      SIDEBAR_W,
@@ -396,7 +479,6 @@ export class TabManager {
       const title = wc.getTitle() || url
       this.updateTabMeta(id, { status: 'ready', url, title, lastAccessedAt: Date.now() })
 
-      // Recover from any stuck viewHidden state when the active tab loads
       if (id === this.activeTabId && this.viewHidden) {
         this.viewHidden = false
         this.repositionAll()

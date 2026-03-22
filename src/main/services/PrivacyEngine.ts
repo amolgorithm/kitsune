@@ -4,10 +4,6 @@ import type { BlockedTracker, TrackerCategory, PageRiskReport } from '../../shar
 import type { SettingsStore } from './SettingsStore'
 import type { NineTailsEngine } from './NineTailsEngine'
 
-const FINGERPRINT_DOMAINS = [
-  'fingerprintjs.com', 'fingerprint2.com',
-]
-
 const TRACKER_HEURISTIC_PATTERNS: Array<{ re: RegExp; category: TrackerCategory }> = [
   { re: /google-analytics|ga\.js|gtag/i,          category: 'analytics' },
   { re: /doubleclick|googlesyndication|adnxs/i,    category: 'advertising' },
@@ -26,6 +22,14 @@ const SEED_BLOCKED_DOMAINS = new Set([
   'rubiconproject.com', 'pubmatic.com', 'cdn.mouseflow.com',
 ])
 
+// These domains must never be blocked — AI services, app fonts, etc.
+const ALLOWLISTED_DOMAINS = [
+  'ai.hackclub.com',
+  'fonts.googleapis.com',
+  'fonts.gstatic.com',
+  'www.google.com',       // favicons (s2 service)
+]
+
 export class PrivacyEngine {
   private blockLog = new Map<string, BlockedTracker[]>()
   private blockedDomains: Set<string>
@@ -39,7 +43,6 @@ export class PrivacyEngine {
     this.blockedDomains = new Set(SEED_BLOCKED_DOMAINS)
   }
 
-  // Called from index.ts after NineTailsEngine is created
   setNineTailsEngine(engine: NineTailsEngine): void {
     this.nineTails = engine
   }
@@ -59,8 +62,8 @@ export class PrivacyEngine {
     const blocks = this.blockLog.get(tabId) ?? []
     let score = 0
     for (const b of blocks) {
-      if (b.category === 'malware')            score += 0.4
-      else if (b.category === 'crypto-mining') score += 0.3
+      if (b.category === 'malware')             score += 0.4
+      else if (b.category === 'crypto-mining')  score += 0.3
       else if (b.category === 'fingerprinting') score += 0.15
       else if (b.category === 'advertising')    score += 0.05
       else                                       score += 0.03
@@ -78,6 +81,17 @@ export class PrivacyEngine {
 
   getTotalBlocked(): number { return this.totalBlocked }
 
+  private isAllowlisted(url: string): boolean {
+    try {
+      const hostname = new URL(url).hostname.replace(/^www\./, '')
+      for (const allowed of ALLOWLISTED_DOMAINS) {
+        const allowedHost = allowed.replace(/^www\./, '')
+        if (hostname === allowedHost || hostname.endsWith(`.${allowedHost}`)) return true
+      }
+    } catch { /* malformed URL — don't block */ return true }
+    return false
+  }
+
   private installRequestFilter(): void {
     this.sess.webRequest.onBeforeRequest({ urls: ['<all_urls>'] }, (details, callback) => {
       if (!this.settings.get('trackerBlockingEnabled') && !this.settings.get('adBlockingEnabled')) {
@@ -89,7 +103,12 @@ export class PrivacyEngine {
         return callback({ cancel: false })
       }
 
-      // Shield tail — custom rules run before the built-in blocklist
+      // Never block allowlisted domains (AI endpoint, fonts, etc.)
+      if (this.isAllowlisted(details.url)) {
+        return callback({ cancel: false })
+      }
+
+      // Shield tail — custom rules before built-in blocklist
       if (this.nineTails) {
         const shield = this.nineTails.shouldBlockRequest(details.url, details.resourceType ?? '')
         if (shield.block) {
@@ -101,7 +120,6 @@ export class PrivacyEngine {
           })
           return callback({ cancel: true })
         }
-        // Strip action — redirect to cleaned URL
         if (shield.action === 'strip') {
           const cleaned = this.nineTails.stripUtmParams(details.url)
           if (cleaned !== details.url) return callback({ redirectURL: cleaned })
@@ -139,19 +157,14 @@ export class PrivacyEngine {
 
   private installFingerprintGuard(): void {
     if (!this.settings.get('fingerprintProtection')) return
-
     this.sess.webRequest.onHeadersReceived((details, callback) => {
-      // Never modify localhost responses (Vite dev server)
       if (details.url.startsWith('http://localhost') || details.url.startsWith('ws://localhost')) {
         return callback({ cancel: false })
       }
-
       callback({
         responseHeaders: {
           ...details.responseHeaders,
-          'Permissions-Policy': [
-            'camera=(), microphone=(), geolocation=()',
-          ],
+          'Permissions-Policy': ['camera=(), microphone=(), geolocation=()'],
         },
       })
     })

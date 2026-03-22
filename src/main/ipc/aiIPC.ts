@@ -3,13 +3,50 @@ import type { IpcMain } from 'electron'
 import type { AIService } from '../services/AIService'
 import type { TabManager } from '../services/TabManager'
 
+const HACKCLUB_BASE = 'https://ai.hackclub.com/proxy/v1'
+
 export function registerAIIPC(
   ipcMain: IpcMain,
   ai: AIService,
   tabManager: TabManager,
 ): void {
-  // Status check — renderer calls this to show AI readiness
+  // Status check
   ipcMain.handle('ai:status', () => ai.getStatus())
+
+  // Test connection — runs from main process using electron.net
+  // so it bypasses renderer fetch restrictions
+  ipcMain.handle('ai:test-connection', async (_e, { apiKey, model }: { apiKey: string; model: string }) => {
+    try {
+      const { net } = require('electron')
+      if (!net?.fetch) throw new Error('electron.net.fetch not available')
+
+      const res = await net.fetch(`${HACKCLUB_BASE}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model,
+          messages: [{ role: 'user', content: 'Reply with the single word: OK' }],
+          max_tokens: 5,
+        }),
+      })
+
+      const body = await res.text()
+      console.log('[aiIPC] test-connection status:', res.status, 'body:', body.slice(0, 100))
+
+      if (res.ok) {
+        return { ok: true, status: res.status, body }
+      } else {
+        return { ok: false, status: res.status, body }
+      }
+    } catch (err: any) {
+      const cause = err?.cause?.message ?? String(err?.cause ?? '')
+      console.error('[aiIPC] test-connection error:', err.message, cause)
+      return { ok: false, error: `${err.message}${cause ? ` — ${cause}` : ''}` }
+    }
+  })
 
   ipcMain.handle('ai:summarize-page', async (_e, tabId: string) => {
     const tab = tabManager.getTab(tabId)
