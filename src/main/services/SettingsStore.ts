@@ -52,6 +52,14 @@ export class SettingsStore {
     console.log('[SettingsStore] saved:', Object.keys(patch).join(', '))
   }
 
+  // Wipes every key from both the in-memory store and the JSON file on disk.
+  // This is the only safe way to clear — the store instance rewrites the file
+  // on any set(), so deleting the file externally races against live writes.
+  clearAll(): void {
+    this.store.clear()
+    console.log('[SettingsStore] cleared all data')
+  }
+
   onChange(key: SettingsKey | string, fn: () => void): () => void {
     if (!this.listeners.has(key)) this.listeners.set(key, [])
     this.listeners.get(key)!.push(fn)

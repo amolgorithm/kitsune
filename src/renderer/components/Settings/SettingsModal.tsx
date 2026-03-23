@@ -59,7 +59,6 @@ export function SettingsModal() {
     setTimeout(() => setSaved(false), 1500)
   }
 
-  // Route through main process (electron.net) — renderer fetch can't reach external hosts
   const testAI = async () => {
     if (!settings) return
     setTestStatus('testing')
@@ -70,7 +69,6 @@ export function SettingsModal() {
         model: settings.aiModel,
       }) as { ok: boolean; status?: number; body?: string; error?: string }
 
-      console.log('[Settings] test result:', result)
       if (result.ok) {
         setTestStatus('ok')
       } else {
@@ -484,6 +482,106 @@ function HotkeysSection({ s }: { s: KitsuneSettings }) {
   )
 }
 
+// ─── Clear Data (inline, no separate file) ────────────────────────
+
+type ClearPhase = 'idle' | 'confirm' | 'clearing' | 'done' | 'error'
+
+function ClearDataSection() {
+  const [phase, setPhase] = useState<ClearPhase>('idle')
+  const [layers, setLayers] = useState<Array<{ label: string; ok: boolean }>>([])
+
+  const handleClear = async () => {
+    setPhase('clearing')
+    const result = { localStorage: false, sessionStorage: false, indexedDB: false, mainProcess: false }
+
+    try { localStorage.clear(); result.localStorage = true } catch {}
+    try { sessionStorage.clear(); result.sessionStorage = true } catch {}
+
+    try {
+      const dbs = await window.indexedDB.databases?.() ?? []
+      await Promise.allSettled(
+        dbs.map(db => db.name
+          ? new Promise<void>((res, rej) => {
+              const req = window.indexedDB.deleteDatabase(db.name!)
+              req.onsuccess = () => res(); req.onerror = () => rej(); req.onblocked = () => res()
+            })
+          : Promise.resolve()
+        )
+      )
+      result.indexedDB = true
+    } catch {}
+
+    try {
+      await window.kitsune.invoke('data:clearAll' as any)
+      result.mainProcess = true
+    } catch {}
+
+    setLayers([
+      { label: 'Notes & local storage', ok: result.localStorage },
+      { label: 'Session storage',        ok: result.sessionStorage },
+      { label: 'Cached site data',       ok: result.indexedDB },
+      { label: 'Settings & Nine Tails',  ok: result.mainProcess },
+    ])
+    setPhase('done')
+    setTimeout(() => window.location.reload(), 1800)
+  }
+
+  if (phase === 'idle') return (
+    <div className={styles.row}>
+      <div className={styles.rowInfo}>
+        <div className={styles.rowLabel}>Clear all data</div>
+        <div className={styles.rowDesc}>Removes notes, bookmarks, settings, Nine Tails history, and all cached data. The app will restart.</div>
+      </div>
+      <div className={styles.rowControl}>
+        <button
+          style={{ padding: '5px 12px', borderRadius: 'var(--k-radius-sm)', background: 'none', border: '1px solid var(--k-red)', color: 'var(--k-red)', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}
+          onClick={() => setPhase('confirm')}>
+          Clear data
+        </button>
+      </div>
+    </div>
+  )
+
+  if (phase === 'confirm') return (
+    <div style={{ padding: '10px 12px', background: 'rgba(255,77,109,0.07)', border: '1px solid rgba(255,77,109,0.25)', borderRadius: 'var(--k-radius-sm)', display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+        <span style={{ fontSize: 16, color: 'var(--k-red)', flexShrink: 0 }}>⚠</span>
+        <div>
+          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--k-text)', marginBottom: 3 }}>This cannot be undone.</div>
+          <div style={{ fontSize: 11, color: 'var(--k-text-2)', lineHeight: 1.55 }}>All notes, bookmarks, settings, Nine Tails rules, and cached AI summaries will be permanently deleted. The app will restart.</div>
+        </div>
+      </div>
+      <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+        <button style={{ padding: '5px 12px', borderRadius: 'var(--k-radius-sm)', background: 'none', border: '1px solid var(--k-border)', color: 'var(--k-text-2)', fontSize: 11, cursor: 'pointer' }} onClick={() => setPhase('idle')}>Cancel</button>
+        <button style={{ padding: '5px 12px', borderRadius: 'var(--k-radius-sm)', background: 'var(--k-red)', border: 'none', color: 'white', fontSize: 11, fontWeight: 700, cursor: 'pointer' }} onClick={handleClear}>Yes, delete everything</button>
+      </div>
+    </div>
+  )
+
+  if (phase === 'clearing') return (
+    <div style={{ padding: '10px 0', display: 'flex', alignItems: 'center', gap: 10, fontSize: 12, color: 'var(--k-text-2)' }}>
+      <div style={{ width: 14, height: 14, border: '2px solid var(--k-border-2)', borderTopColor: 'var(--k-fox)', borderRadius: '50%', animation: 'k-spin 0.7s linear infinite', flexShrink: 0 }} />
+      Clearing data…
+    </div>
+  )
+
+  if (phase === 'done') return (
+    <div style={{ padding: '10px 0', display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+      <span style={{ fontSize: 16, color: 'var(--k-green)', flexShrink: 0 }}>✓</span>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+        {layers.map(l => (
+          <span key={l.label} style={{ fontSize: 11, fontFamily: 'var(--k-font-mono)', color: l.ok ? 'var(--k-green)' : 'var(--k-red)' }}>
+            {l.ok ? '✓' : '✗'} {l.label}
+          </span>
+        ))}
+        <span style={{ fontSize: 11, color: 'var(--k-text-3)', fontStyle: 'italic', marginTop: 2 }}>Restarting…</span>
+      </div>
+    </div>
+  )
+
+  return null
+}
+
 function AboutSection() {
   return (
     <div className={styles.section}>
@@ -501,6 +599,12 @@ function AboutSection() {
       <p className={styles.aboutDesc}>
         An AI-native, fully programmable browser built on Electron. Fast, private, and intelligent.
       </p>
+
+      {/* ── Danger zone ────────────────────────────────────────── */}
+      <div style={{ marginTop: 24, paddingTop: 16, borderTop: '1px solid var(--k-border)' }}>
+        <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--k-red)', marginBottom: 8, opacity: 0.7 }}>Danger zone</div>
+        <ClearDataSection />
+      </div>
     </div>
   )
 }
